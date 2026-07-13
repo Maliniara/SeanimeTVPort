@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">SeanimeTV</string>
+    <string name="home_section_watching">Watching</string>
+    <string name="home_section_planning">Planning</string>
+    <string name="home_retry">Retry</string>
+    <string name="home_open_settings">Open Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_account_section">AniList Account</string>
+    <string name="settings_logout">Log out</string>
+    <string name="settings_plugins_section">Plugins</string>
+    <string name="settings_add_plugin_url">+ Add URL</string>
+    <string name="settings_plugin_builtin">built-in</string>
+    <string name="settings_plugin_active">Active</string>
+    <string name="settings_plugin_activate">Activate</string>
+    <string name="settings_plugin_url_placeholder">https://example.com/plugin.js</string>
+    <string name="settings_add_plugin_title">Add plugin URL</string>
+    <string name="settings_add_plugin_cancel">Cancel</string>
+    <string name="settings_add_plugin_confirm">Add</string>
+    <string name="login_retry">Try again</string>
+    <string name="plugin_store_title">Plugin Store</string>
+    <string name="plugin_store_browse">Browse Store</string>
+    <string name="plugin_store_install">Install</string>
+    <string name="plugin_store_installed">Installed</string>
+    <string name="plugin_store_loading">Loading plugins…</string>
+    <string name="plugin_store_empty">No plugins available</string>
+    <string name="plugin_store_error">Failed to load plugins</string>
+    <string name="plugin_store_retry">Retry</string>
+    <string name="settings_plugin_indicator_active">●</string>
+    <string name="settings_plugin_indicator_inactive">○</string>
+    <string name="settings_plugin_remove_label">✕</string>
+    <string name="settings_plugin_remove_description">Remove plugin</string>
+</resources>

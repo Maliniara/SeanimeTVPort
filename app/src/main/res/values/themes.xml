@@ -1,0 +1,8 @@
+<resources>
+
+    <!-- Dark-only app: a fixed black window background avoids the light
+         DayNight flash before Compose draws, at zero overdraw cost. -->
+    <style name="Theme.SeanimeTV" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

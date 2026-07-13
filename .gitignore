@@ -1,0 +1,28 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Build outputs (any module) — app/build holds generated BuildConfig with secrets
+build/
+# IDE / tooling
+/.idea
+/.kotlin
+# Local planning docs (not part of the shipped code)
+/docs
+# Editor backup artifacts
+*.bak
+
+# Stray analysis docs
+*.analysis.md
