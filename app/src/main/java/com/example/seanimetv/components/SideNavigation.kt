@@ -16,7 +16,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,7 +36,6 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +53,6 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import com.example.seanimetv.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
@@ -64,6 +61,9 @@ import com.example.seanimetv.ui.theme.SeanimeBorder
 import com.example.seanimetv.ui.theme.SeanimeOnSurface
 import com.example.seanimetv.ui.theme.ExpressiveShapes
 import com.example.seanimetv.ui.theme.SeanimePrimary
+import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.text.style.TextAlign
 
 enum class NavSection { HOME, SEARCH, SCHEDULE, LIBRARY, ANILIST, EXTENSIONS }
 enum class LibraryTab { ALL, WATCHING, PLANNING, COMPLETED, DROPPED, PAUSED }

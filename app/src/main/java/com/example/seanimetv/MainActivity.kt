@@ -29,12 +29,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,6 +98,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.example.seanimetv.data.net.StreamingHttpClient
 import okhttp3.OkHttpClient
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 const val ROUTE_LOGIN = "login"
 const val ROUTE_ACCOUNT_PICKER = "account_picker"

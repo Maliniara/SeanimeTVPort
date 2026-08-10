@@ -27,7 +27,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +52,7 @@ import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimePrimary
 import com.example.seanimetv.ui.theme.SeanimeSurface
 import com.example.seanimetv.ui.theme.SeanimeTVTheme
+import androidx.compose.runtime.getValue
 
 // ---------------------------------------------------------------------------
 // SettingsScreen — AniList account, Anime presentation prefs (Denshi), TV channel

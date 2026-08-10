@@ -21,7 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -46,6 +45,7 @@ import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimePrimary
 import com.example.seanimetv.ui.theme.SeanimeSurface
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
 
 /**
  * Startup account chooser, shown before Home when more than one account is
