@@ -45,6 +45,9 @@ class AniListApiClient(
             if (BuildConfig.DEBUG) {
                 addInterceptor(HttpLoggingInterceptor().apply {
                     level = HttpLoggingInterceptor.Level.BODY
+                    // The bearer token is the user's AniList account. Even in debug
+                    // it has no business sitting in logcat in full.
+                    redactHeader("Authorization")
                 })
                 // DEBUG ONLY: emulator AOSP images lack the Google Trust Services
                 // root CA that now signs AniList's cert, so strict validation fails
