@@ -1,0 +1,790 @@
+package com.example.seanimetv.feature.home
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import coil.compose.AsyncImage
+import com.example.seanimetv.components.ActionButton
+import com.example.seanimetv.components.AmbientBackdrop
+import com.example.seanimetv.components.AnimeCard
+import com.example.seanimetv.components.PageTitle
+import com.example.seanimetv.components.SectionHeader
+import com.example.seanimetv.components.ExpressiveLoadingIndicator
+import com.example.seanimetv.components.entranceReveal
+import com.example.seanimetv.components.MediaCardRow
+import com.example.seanimetv.components.SeriesPill
+import com.example.seanimetv.components.horizontalFadingEdges
+import com.example.seanimetv.components.rememberEntranceProgress
+import com.example.seanimetv.components.LibraryTab
+import com.example.seanimetv.components.LocalIsLowRamDevice
+import com.example.seanimetv.components.NavSection
+import com.example.seanimetv.components.SideNavigation
+import com.example.seanimetv.data.anilist.model.AniListMedia
+import com.example.seanimetv.data.anilist.model.AniListMediaListEntry
+import com.example.seanimetv.data.anilist.model.AniListUser
+import com.example.seanimetv.data.anilist.model.MediaListStatus
+import com.example.seanimetv.data.anilist.repository.AniListRepository
+import com.example.seanimetv.data.history.WatchHistoryEntry
+import com.example.seanimetv.data.metadata.AniZipClient
+import com.example.seanimetv.data.model.AnimeEntry
+import com.example.seanimetv.ui.theme.ExpressiveMotion
+import com.example.seanimetv.ui.theme.ExpressiveShapes
+import com.example.seanimetv.ui.theme.SeanimeBackground
+import com.example.seanimetv.ui.theme.SeanimeBorder
+import com.example.seanimetv.ui.theme.SeanimeOnSurface
+import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
+import com.example.seanimetv.ui.theme.SeanimePrimary
+import com.example.seanimetv.ui.theme.SeanimeSurface
+import com.example.seanimetv.ui.theme.SeanimeTVTheme
+
+// ---------------------------------------------------------------------------
+// Home section
+// ---------------------------------------------------------------------------
+
+@Composable
+internal fun HomeContent(
+    state: HomeUiState.Success,
+    watchHistory: List<WatchHistoryEntry>,
+    dismissedContinue: Set<Int>,
+    onCardClick: (Int) -> Unit,
+    onResumeClick: (Int, Int) -> Unit,
+    onRemoveHistory: (Int) -> Unit,
+    onDismissContinue: (Int) -> Unit,
+    onChangeStatus: (Int, Int, MediaListStatus) -> Unit,
+    aniZipClient: AniZipClient? = null
+) {
+    val allEntries = state.currentList + state.planningList
+    // The hero pins the LAST WATCHED series (local history) and that series is
+    // removed from the Continue Watching row below — otherwise the top of Home
+    // duplicated the same show twice.
+    val lastWatched = watchHistory.firstOrNull()
+    val lastWatchedId = lastWatched?.anilistId
+    val continueWatching = remember(state, lastWatchedId, dismissedContinue) {
+        state.currentList
+            .filterNot { it.id == lastWatchedId }
+            // Series the user hid from this row via the card menu (view-only).
+            .filterNot { it.id in dismissedContinue }
+            // Drop series whose next episode hasn't aired yet — nothing new to
+            // continue, so they don't belong in Continue Watching.
+            .filterNot { entry ->
+                entry.nextAiringEpisode?.let { entry.progress + 1 >= it } == true
+            }
+    }
+
+    // The card the user long-pressed — drives the context menu overlay. Null = closed.
+    var cardMenu by remember { mutableStateOf<CardMenuTarget?>(null) }
+    fun statusOf(id: Int): MediaListStatus? = when {
+        state.currentList.any { it.id == id } -> MediaListStatus.CURRENT
+        state.planningList.any { it.id == id } -> MediaListStatus.PLANNING
+        state.completedList.any { it.id == id } -> MediaListStatus.COMPLETED
+        state.pausedList.any { it.id == id } -> MediaListStatus.PAUSED
+        state.droppedList.any { it.id == id } -> MediaListStatus.DROPPED
+        else -> null
+    }
+    var heroEntry by remember(state, lastWatchedId) {
+        mutableStateOf(
+            lastWatched?.let { h ->
+                state.currentList.firstOrNull { it.id == h.anilistId } ?: AnimeEntry(
+                    id = h.anilistId,
+                    title = h.title,
+                    coverImageUrl = h.coverImageUrl,
+                    bannerImageUrl = h.bannerImageUrl
+                )
+            } ?: allEntries.firstOrNull()
+        )
+    }
+    val heroButtonFocuser = remember { FocusRequester() }
+    val scrollState = rememberScrollState()
+
+    // Snap initial focus to the hero Watch button so the TV focus system never
+    // picks a card deeper in the scroll column and displaces the view on load.
+    // Keyed on Unit, NOT state: a background data refresh must never steal
+    // focus or reset the scroll position mid-browsing.
+    LaunchedEffect(Unit) {
+        try { heroButtonFocuser.requestFocus() } catch (_: Exception) {}
+        scrollState.scrollTo(0)
+    }
+
+    // Timestamp of the last card-focus interaction — the backdrop rotation
+    // stays out of the way while the user is actively browsing.
+    var lastFocusAt by remember { mutableStateOf(0L) }
+    fun focusHero(entry: AnimeEntry) {
+        heroEntry = entry
+        lastFocusAt = System.currentTimeMillis()
+    }
+
+    // Ambient backdrop rotation: every 60s the hero swaps to another Continue
+    // Watching series; with fewer than 5 CW series, planning banners join the
+    // pool. Each swap costs a full-screen banner decode + crossfade, so it is
+    // skipped entirely on low-RAM boxes and paused during active browsing.
+    // Keyed on Unit + rememberUpdatedState so refreshes don't restart the loop.
+    val lowRam = LocalIsLowRamDevice.current
+    val latestState by rememberUpdatedState(state)
+    LaunchedEffect(Unit) {
+        if (lowRam) return@LaunchedEffect
+        while (true) {
+            delay(60_000)
+            if (System.currentTimeMillis() - lastFocusAt < 20_000) continue
+            val s = latestState
+            val pool = if (s.currentList.size >= 5) {
+                s.currentList
+            } else {
+                s.currentList + s.planningList
+            }
+            val candidates = pool.filter { it.id != heroEntry?.id }
+            if (candidates.isNotEmpty()) heroEntry = candidates.random()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // Full-bleed backdrop — spans the whole screen, including the strip
+        // under the floating sidebar card
+        AmbientBackdrop(imageUrl = heroEntry?.bannerImageUrl ?: heroEntry?.coverImageUrl)
+
+        // Column+verticalScroll instead of LazyColumn — avoids the auto-scroll-to-focused-item
+        // behavior that caused the ContinueWatching panel to bounce up/down when cards got focus.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+        ) {
+            HeroSection(
+                entry = heroEntry,
+                onWatchClick = { heroEntry?.let { onCardClick(it.id) } },
+                onDetailsClick = { heroEntry?.let { onCardClick(it.id) } },
+                watchButtonFocuser = heroButtonFocuser
+            )
+
+            // Rows cascade in after the hero — graphicsLayer only, so cards are
+            // focusable from the first frame. Inset past the sidebar card.
+            Column(modifier = Modifier.padding(start = 76.dp)) {
+                if (watchHistory.isNotEmpty()) {
+                    Box(Modifier.entranceReveal(rememberEntranceProgress(delayMillis = 100))) {
+                        WatchHistoryRow(
+                            entries = watchHistory,
+                            onResume = { h -> onResumeClick(h.anilistId, h.episodeNumber) },
+                            onCardFocus = { h ->
+                                focusHero(
+                                    AnimeEntry(
+                                        id = h.anilistId,
+                                        title = h.title,
+                                        coverImageUrl = h.coverImageUrl,
+                                        bannerImageUrl = h.bannerImageUrl
+                                    )
+                                )
+                            },
+                            onCardLongPress = { h ->
+                                cardMenu = CardMenuTarget(
+                                    anilistId = h.anilistId,
+                                    title = h.title,
+                                    progress = h.episodeNumber,
+                                    fromHistory = true
+                                )
+                            }
+                        )
+                    }
+                }
+
+                if (continueWatching.isNotEmpty()) {
+                    Box(Modifier.entranceReveal(rememberEntranceProgress(delayMillis = 150))) {
+                        ContinueWatchingRow(
+                            entries = continueWatching,
+                            focusedEntry = heroEntry,
+                            onCardClick = onCardClick,
+                            onCardFocus = { focusHero(it) },
+                            onCardLongPress = { e ->
+                                cardMenu = CardMenuTarget(
+                                    anilistId = e.id,
+                                    title = e.title,
+                                    progress = e.progress,
+                                    fromHistory = false
+                                )
+                            },
+                            aniZipClient = aniZipClient
+                        )
+                    }
+                }
+
+                if (state.planningList.isNotEmpty()) {
+                    Box(Modifier.entranceReveal(rememberEntranceProgress(delayMillis = 280))) {
+                        SectionRow(
+                            title = "Planning",
+                            entries = state.planningList,
+                            onCardClick = onCardClick,
+                            onCardFocus = { focusHero(it) }
+                        )
+                    }
+                }
+
+                if (state.recommendedList.isNotEmpty()) {
+                    Box(Modifier.entranceReveal(rememberEntranceProgress(delayMillis = 400))) {
+                        SectionRow(
+                            title = "Recommended for You",
+                            entries = state.recommendedList,
+                            onCardClick = onCardClick
+                        )
+                    }
+                }
+
+                if (allEntries.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No anime in your list yet.\nAdd some on AniList!",
+                            color = SeanimeOnSurfaceMuted,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(48.dp))
+            }
+        }
+
+        cardMenu?.let { target ->
+            HomeCardMenu(
+                title = target.title,
+                removeLabel = if (target.fromHistory) "Remove from Recently watched"
+                    else "Hide from Continue watching",
+                currentStatus = statusOf(target.anilistId),
+                onRemove = {
+                    if (target.fromHistory) onRemoveHistory(target.anilistId)
+                    else onDismissContinue(target.anilistId)
+                },
+                onChangeStatus = { status -> onChangeStatus(target.anilistId, target.progress, status) },
+                onDismiss = { cardMenu = null }
+            )
+        }
+    }
+}
+
+/** The Home card targeted by the long-press context menu (see [HomeCardMenu]). */
+private data class CardMenuTarget(
+    val anilistId: Int,
+    val title: String,
+    val progress: Int,
+    val fromHistory: Boolean
+)
+
+// ---------------------------------------------------------------------------
+// Continue Watching — episode-style wide cards (Image #1 reference)
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ContinueWatchingRow(
+    entries: List<AnimeEntry>,
+    focusedEntry: AnimeEntry?,
+    onCardClick: (Int) -> Unit,
+    onCardFocus: (AnimeEntry) -> Unit,
+    onCardLongPress: (AnimeEntry) -> Unit,
+    aniZipClient: AniZipClient? = null
+) {
+    Column(modifier = Modifier.padding(bottom = 32.dp)) {
+        Column(modifier = Modifier.padding(start = 32.dp, bottom = 12.dp)) {
+            SectionHeader("Continue watching")
+            Text(
+                text = focusedEntry?.title ?: entries.firstOrNull()?.title ?: "",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = SeanimeOnSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp, start = 12.dp)
+            )
+        }
+
+        MediaCardRow(startInset = 32.dp, itemSpacing = 16.dp) {
+            itemsIndexed(entries, key = { _, entry -> entry.id }) { _, entry ->
+                EpisodeCard(
+                    entry = entry,
+                    onClick = { onCardClick(entry.id) },
+                    onFocus = { onCardFocus(entry) },
+                    onLongClick = { onCardLongPress(entry) },
+                    aniZipClient = aniZipClient
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EpisodeCard(
+    entry: AnimeEntry,
+    onClick: () -> Unit,
+    onFocus: () -> Unit,
+    onLongClick: () -> Unit,
+    aniZipClient: AniZipClient? = null
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    // Real per-episode thumbnail (Denshi look): lazily pull the NEXT episode's
+    // image from ani.zip. Falls back to the banner until (or unless) it loads.
+    var episodeThumb by remember(entry.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(entry.id, entry.progress) {
+        val client = aniZipClient ?: return@LaunchedEffect
+        val next = entry.progress + 1
+        episodeThumb = client.getEpisodes(entry.id)[next]?.image
+    }
+
+    // Defer the hero-entry update to after composition completes. Calling onFocus()
+    // directly during composition mutates heroEntry while HeroSection reads it in the
+    // same composition pass — Compose restarts the composition, looping until the
+    // animation frame settles, which produces the visible up/down bounce.
+    // The 150ms delay also debounces rapid D-pad navigation so the hero image only
+    // updates when the user actually pauses on a card.
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            // 300ms matches the backdrop debounce: a vertical row change never
+            // swaps the hero mid-scroll (that recomposition was the frame drop
+            // when crossing between rows).
+            delay(300)
+            onFocus()
+        }
+    }
+
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.05f else 1f,
+        animationSpec = ExpressiveMotion.spatialFast(),
+        label = "episodeCardScale"
+    )
+
+    val nextEp = entry.progress + 1
+    val totalEp = entry.totalEpisodes
+    // AniList told us which episode airs NEXT — anything from that number up
+    // hasn't been published yet, so the card must not imply it's watchable.
+    val nextUnaired = entry.nextAiringEpisode?.let { nextEp >= it } == true
+
+    Column(
+        modifier = Modifier
+            .width(280.dp)
+            // graphicsLayer keeps layout size stable — scale is draw-only, no layout bounce
+            .drawWithContent {
+                val s = scale
+                scale(scale = s, pivot = center) {
+                    this@drawWithContent.drawContent()
+                }
+            }
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .focusable(interactionSource = interactionSource)
+    ) {
+        // 16:9 thumbnail
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(158.dp)
+                .clip(ExpressiveShapes.medium)
+                .border(
+                    width = if (isFocused) 2.dp else 0.dp,
+                    color = SeanimePrimary,
+                    shape = ExpressiveShapes.medium
+                )
+        ) {
+            val imageUrl = episodeThumb ?: entry.bannerImageUrl ?: entry.coverImageUrl
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Bottom gradient + episode label
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f))
+                    )
+            )
+            // Progress bar at bottom
+            if (totalEp != null && entry.progress > 0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(Color.White.copy(alpha = 0.25f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction = (entry.progress.toFloat() / totalEp).coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(SeanimePrimary)
+                    )
+                }
+            }
+        }
+
+        // Metadata below card
+        Column(modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Episode",
+                    fontSize = 11.sp,
+                    color = SeanimeOnSurfaceMuted
+                )
+                Text(
+                    text = if (totalEp != null) "$nextEp / $totalEp" else "$nextEp",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (nextUnaired) SeanimeOnSurfaceMuted else SeanimeOnSurface
+                )
+                Text(
+                    text = "·",
+                    fontSize = 11.sp,
+                    color = SeanimeOnSurfaceMuted
+                )
+                Text(
+                    text = if (nextUnaired) "Not aired yet" else "24m",
+                    fontSize = 11.sp,
+                    fontWeight = if (nextUnaired) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (nextUnaired) SeanimePrimary else SeanimeOnSurfaceMuted
+                )
+            }
+            Text(
+                text = entry.title,
+                fontSize = 11.sp,
+                color = SeanimeOnSurfaceMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Recently watched — local playback history with resume position (mm:ss)
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun WatchHistoryRow(
+    entries: List<WatchHistoryEntry>,
+    onResume: (WatchHistoryEntry) -> Unit,
+    onCardFocus: (WatchHistoryEntry) -> Unit,
+    onCardLongPress: (WatchHistoryEntry) -> Unit
+) {
+    Column(modifier = Modifier.padding(bottom = 32.dp)) {
+        Column(modifier = Modifier.padding(start = 32.dp, bottom = 12.dp)) {
+            SectionHeader("Recently watched")
+        }
+        MediaCardRow(startInset = 32.dp, itemSpacing = 16.dp) {
+            itemsIndexed(entries, key = { _, entry -> entry.anilistId }) { _, entry ->
+                WatchHistoryCard(
+                    entry = entry,
+                    onClick = { onResume(entry) },
+                    onFocus = { onCardFocus(entry) },
+                    onLongClick = { onCardLongPress(entry) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun WatchHistoryCard(
+    entry: WatchHistoryEntry,
+    onClick: () -> Unit,
+    onFocus: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    LaunchedEffect(isFocused) { if (isFocused) { delay(300); onFocus() } }
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.05f else 1f,
+        animationSpec = tween(150),
+        label = "historyCardScale"
+    )
+    val fraction = if (entry.durationMs > 0)
+        (entry.positionMs.toFloat() / entry.durationMs).coerceIn(0f, 1f) else 0f
+
+    Column(
+        modifier = Modifier
+            .width(280.dp)
+            .drawWithContent {
+                val s = scale
+                scale(scale = s, pivot = center) { this@drawWithContent.drawContent() }
+            }
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .focusable(interactionSource = interactionSource)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(158.dp)
+                .clip(ExpressiveShapes.medium)
+                .border(
+                    width = if (isFocused) 2.dp else 0.dp,
+                    color = SeanimePrimary,
+                    shape = ExpressiveShapes.medium
+                )
+        ) {
+            AsyncImage(
+                model = entry.bannerImageUrl ?: entry.coverImageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f)))
+            )
+            // Resume progress bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(Color.White.copy(alpha = 0.25f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = fraction)
+                        .fillMaxHeight()
+                        .background(SeanimePrimary)
+                )
+            }
+        }
+
+        Column(modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("Episode", fontSize = 11.sp, color = SeanimeOnSurfaceMuted)
+                Text("${entry.episodeNumber}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SeanimeOnSurface)
+                Text("·", fontSize = 11.sp, color = SeanimeOnSurfaceMuted)
+                Text(formatTimestamp(entry.positionMs), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SeanimePrimary)
+            }
+            Text(
+                text = entry.title,
+                fontSize = 11.sp,
+                color = SeanimeOnSurfaceMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/** Formats a millisecond position as m:ss (or h:mm:ss past an hour). */
+private fun formatTimestamp(ms: Long): String {
+    val totalSec = (ms / 1000).coerceAtLeast(0)
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+// ---------------------------------------------------------------------------
+// Hero section
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun HeroSection(
+    entry: AnimeEntry?,
+    onWatchClick: () -> Unit,
+    onDetailsClick: () -> Unit,
+    watchButtonFocuser: FocusRequester? = null
+) {
+    val revealTitle = rememberEntranceProgress()
+    val revealMeta = rememberEntranceProgress(delayMillis = 120)
+    val revealButtons = rememberEntranceProgress(delayMillis = 240)
+
+    // Overlay-only hero: the banner and all scrims live in the full-screen
+    // backdrop behind the scroll column — this area only holds the
+    // title/metadata/buttons block.
+    Box(modifier = Modifier.fillMaxWidth().height(340.dp)) {
+        if (entry != null) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 108.dp, bottom = 28.dp, end = 160.dp)
+            ) {
+                Text(
+                    text = entry.title,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 34.sp,
+                    modifier = Modifier.entranceReveal(revealTitle)
+                )
+                val nextEp = entry.progress + 1
+                val totalEp = entry.totalEpisodes
+                Text(
+                    text = if (totalEp != null) "Episode $nextEp of $totalEp" else "Episode $nextEp",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.65f),
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .entranceReveal(revealMeta)
+                )
+                // Thin watch-progress line under the episode label
+                if (totalEp != null && entry.progress > 0) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .width(220.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .entranceReveal(revealMeta)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fraction = (entry.progress.toFloat() / totalEp).coerceIn(0f, 1f))
+                                .fillMaxHeight()
+                                .background(SeanimePrimary)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.entranceReveal(revealButtons)
+                ) {
+                    SeriesPill(
+                        label = "▶  Watch",
+                        onClick = onWatchClick,
+                        modifier = if (watchButtonFocuser != null) {
+                            Modifier.focusRequester(watchButtonFocuser)
+                        } else Modifier
+                    )
+                    SeriesPill(label = "Details", onClick = onDetailsClick)
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Generic section row (Planning, etc.)
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun SectionRow(
+    title: String,
+    entries: List<AnimeEntry>,
+    onCardClick: (Int) -> Unit,
+    onCardFocus: (AnimeEntry) -> Unit = {}
+) {
+    Column(modifier = Modifier.padding(bottom = 28.dp)) {
+        SectionHeader(
+            text = title,
+            modifier = Modifier.padding(start = 32.dp, bottom = 10.dp)
+        )
+        MediaCardRow(startInset = 32.dp, itemSpacing = 10.dp) {
+            itemsIndexed(entries, key = { _, entry -> entry.id }) { _, entry ->
+                AnimeCard(
+                    title = entry.title,
+                    coverImageUrl = entry.coverImageUrl,
+                    onClick = { onCardClick(entry.id) },
+                    onFocus = { onCardFocus(entry) }
+                )
+            }
+        }
+    }
+}
+
