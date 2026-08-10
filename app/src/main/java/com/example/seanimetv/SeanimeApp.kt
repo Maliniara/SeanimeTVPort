@@ -5,6 +5,7 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.example.seanimetv.di.AppContainer
 
 /**
  * Application entry point, primarily so Coil uses a memory-conscious [ImageLoader]
@@ -21,6 +22,13 @@ import coil.memory.MemoryCache
  * Coil already trims this cache on `onTrimMemory`, so no manual handling needed.
  */
 class SeanimeApp : Application(), ImageLoaderFactory {
+
+    /**
+     * The process-wide dependency graph. Lazy so nothing is built during
+     * [Application.onCreate] — cold start on a TV box is already tight.
+     */
+    val container: AppContainer by lazy { AppContainer(this) }
+
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
             .allowRgb565(true)

@@ -1,6 +1,5 @@
 package com.example.seanimetv
 
-import android.app.ActivityManager
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -43,7 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -51,24 +49,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
-import com.example.seanimetv.data.anilist.AccountStore
 import com.example.seanimetv.data.anilist.AniListAccount
-import com.example.seanimetv.data.anilist.AniListApiClient
-import com.example.seanimetv.data.anilist.TokenDataStore
-import com.example.seanimetv.data.anilist.repository.AniListRepositoryImpl
-import com.example.seanimetv.data.extension.ExtensionRepositoryImpl
-import com.example.seanimetv.data.history.WatchHistoryStore
-import com.example.seanimetv.data.metadata.AniSkipClient
-import com.example.seanimetv.data.metadata.AniZipClient
-import com.example.seanimetv.data.player.SubtitleStylePrefs
-import com.example.seanimetv.data.plugin.PluginRepositoryImpl
-import com.example.seanimetv.data.settings.AnimeSettingsStore
+import com.example.seanimetv.di.viewModelFactory
 import com.example.seanimetv.data.plugin.QuickJSEngine
-import com.example.seanimetv.data.plugin.TsTranspiler
 import com.example.seanimetv.feature.extensions.ExtensionsScreen
 import com.example.seanimetv.feature.extensions.ExtensionsViewModel
 import com.example.seanimetv.data.plugin.model.EpisodeServer
-import com.example.seanimetv.data.tvchannel.TvChannelPublisher
 import coil.imageLoader
 import coil.request.ImageRequest
 import com.example.seanimetv.components.LocalAnimeSettings
@@ -96,8 +82,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.example.seanimetv.data.net.StreamingHttpClient
-import okhttp3.OkHttpClient
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -113,58 +97,27 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Detected once — drives skipping entrance animations / offscreen effects
-        // on memory-constrained boxes like the Chromecast with Google TV (HD).
-        // isLowRamDevice alone is unreliable: some 1.5–2 GB TV boxes don't set
-        // ro.config.low_ram, so also treat anything under 2 GB total as low-RAM.
-        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-        val memoryInfo = ActivityManager.MemoryInfo().also { activityManager.getMemoryInfo(it) }
-        val isLowRamDevice = activityManager.isLowRamDevice ||
-            memoryInfo.totalMem < 2L * 1024 * 1024 * 1024
-        android.util.Log.i(
-            "SeanimeTV",
-            "lowRam gate: isLowRamDevice=${activityManager.isLowRamDevice} " +
-                "totalMem=${memoryInfo.totalMem / (1024 * 1024)}MB -> effective=$isLowRamDevice"
-        )
-
-        // Multi-account store; migrates the legacy single-token store on first read.
-        val authRepository = AccountStore(
-            applicationContext,
-            legacy = TokenDataStore(applicationContext)
-        )
-        val watchHistoryStore = WatchHistoryStore(applicationContext)
-        val subtitleStylePrefs = SubtitleStylePrefs(applicationContext)
-        val animeSettingsStore = AnimeSettingsStore(applicationContext)
-        val aniListApiClient = AniListApiClient(authRepository)
-        val aniListRepository = AniListRepositoryImpl(aniListApiClient)
-        val tvChannelPublisher = TvChannelPublisher(applicationContext, aniListRepository)
-        val pluginRepository = PluginRepositoryImpl(applicationContext)
-        // Streaming/plugin traffic only — tolerates the incomplete TLS chains
-        // some anime CDNs serve. Never carries the AniList auth token (that has
-        // its own strict client). See StreamingHttpClient.
-        val okHttpClient = StreamingHttpClient.build()
-        // Shared so its per-series episode-thumbnail cache is reused across the
-        // Home Continue Watching row and the series detail screen.
-        val aniZipClient = AniZipClient(okHttpClient)
-        // Auth/OAuth traffic (token exchange). Strict TLS in release; only
-        // relaxed in DEBUG so emulators missing the GTS root CA can log in.
-        val authHttpClient = OkHttpClient.Builder()
-            .apply { if (BuildConfig.DEBUG) StreamingHttpClient.applyLenientTls(this) }
-            .build()
-        val storePrefs = getSharedPreferences("plugin_store", Context.MODE_PRIVATE)
-        val extensionRepository = ExtensionRepositoryImpl(
-            context = applicationContext,
-            okHttpClient = okHttpClient,
-            pluginRepository = pluginRepository,
-            transpiler = TsTranspiler(applicationContext)
-        )
+        // The process-wide dependency graph (see AppContainer). Everything below
+        // reads from it rather than constructing its own instances — several of
+        // these own caches or persistent stores that must be shared.
+        val container = (application as SeanimeApp).container
+        val isLowRamDevice = container.isLowRamDevice
+        val authRepository = container.accountStore
+        val watchHistoryStore = container.watchHistoryStore
+        val subtitleStylePrefs = container.subtitleStylePrefs
+        val animeSettingsStore = container.animeSettingsStore
+        val aniListRepository = container.aniListRepository
+        val tvChannelPublisher = container.tvChannelPublisher
+        val pluginRepository = container.pluginRepository
+        val okHttpClient = container.streamingHttpClient
+        val aniZipClient = container.aniZipClient
+        val authHttpClient = container.authHttpClient
+        val storePrefs = container.pluginStorePrefs
+        val extensionRepository = container.extensionRepository
 
         val homeViewModel: HomeViewModel by viewModels {
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    @Suppress("UNCHECKED_CAST")
-                    return HomeViewModel(aniListRepository, watchHistoryStore, animeSettingsStore, authRepository) as T
-                }
+            viewModelFactory {
+                HomeViewModel(aniListRepository, watchHistoryStore, animeSettingsStore, authRepository)
             }
         }
         setContent {
@@ -434,7 +387,7 @@ class MainActivity : ComponentActivity() {
                                     okHttpClient = okHttpClient,
                                     watchHistoryStore = watchHistoryStore,
                                     subtitleStylePrefs = subtitleStylePrefs,
-                                    aniSkipClient = AniSkipClient(okHttpClient)
+                                    aniSkipClient = container.aniSkipClient
                                 )
                             }
                             PlayerScreen(
