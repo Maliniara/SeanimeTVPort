@@ -151,7 +151,10 @@ fun PlayerScreen(
     val subtitleStyle by viewModel.subtitleStyle.collectAsState()
     // Emits only on entering/leaving an AniSkip interval (not per tick).
     val activeSkip by viewModel.activeSkip.collectAsState()
+    // Emits only on entering/leaving the final 2 minutes (not per tick).
+    val inEndZone by viewModel.inEndZone.collectAsState()
     val isBuffering by viewModel.isBuffering.collectAsState()
+    val hasNextEpisode = (uiState as? PlayerUiState.Ready)?.hasNextEpisode == true
 
     var controlsVisible by remember { mutableStateOf(true) }
     // Bumped on every remote keypress while controls are visible — restarts the
@@ -213,12 +216,16 @@ fun PlayerScreen(
                         when (event.key) {
                             Key.DirectionLeft -> { viewModel.seekBy(-10_000); controlsVisible = true; true }
                             Key.DirectionRight -> { viewModel.seekBy(10_000); controlsVisible = true; true }
-                            // OK inside an intro/outro interval skips it; the
-                            // pill on screen advertises this. Otherwise OK
-                            // shows the controls as before.
+                            // OK inside an intro/outro interval skips it; in the
+                            // final 2 minutes (no active skip) it jumps to the next
+                            // episode; otherwise it shows the controls. Each pill on
+                            // screen advertises the current OK action.
                             Key.DirectionCenter, Key.Enter -> {
-                                if (activeSkip != null) viewModel.skipCurrentInterval()
-                                else controlsVisible = true
+                                when {
+                                    activeSkip != null -> viewModel.skipCurrentInterval()
+                                    inEndZone && hasNextEpisode -> onPlayNext(episodeNumber + 1)
+                                    else -> controlsVisible = true
+                                }
                                 true
                             }
                             Key.DirectionUp, Key.DirectionDown -> { controlsVisible = true; true }
@@ -301,6 +308,26 @@ fun PlayerScreen(
             ) {
                 Text(
                     text = if (skip.type == SkipType.INTRO) "OK  —  Skip intro" else "OK  —  Skip outro",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // ── Next-episode pill — the final 2 minutes, when there is a next
+        // episode and no skip pill is showing; OK jumps ahead immediately.
+        if (!controlsVisible && skip == null && inEndZone && hasNextEpisode) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 48.dp, bottom = 48.dp)
+                    .background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(24.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(24.dp))
+                    .padding(horizontal = 20.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = "OK  —  Next episode",
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold

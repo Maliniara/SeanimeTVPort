@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -239,19 +240,29 @@ internal fun WatchPanel(
             Spacer(Modifier.height(12.dp))
 
             when (episodeMode) {
-                // Row: every UNWATCHED episode from the start, as one horizontal strip
-                // (quick "continue"). Falls back to all when everything is watched.
+                // Row: the full episode strip (watched episodes stay visible) that
+                // auto-scrolls to the episode the user is on — the selected one, else
+                // the first unwatched.
                 EpisodeMode.ROW -> {
-                    val unwatched = episodes.filter { it.number > watchedCount }.ifEmpty { episodes }
+                    val rowState = rememberLazyListState()
+                    val targetIndex = remember(episodes, previewEpisode, watchedCount) {
+                        val sel = episodes.indexOfFirst { it.id == previewEpisode?.id }
+                        if (sel >= 0) sel
+                        else watchedCount.coerceIn(0, (episodes.size - 1).coerceAtLeast(0))
+                    }
+                    LaunchedEffect(targetIndex, episodes) {
+                        if (targetIndex > 0) runCatching { rowState.scrollToItem(targetIndex) }
+                    }
                     CompositionLocalProvider(LocalBringIntoViewSpec provides episodeListSpec) {
                         LazyRow(
+                            state = rowState,
                             // Vertical padding = headroom so the focused card's scale
                             // isn't clipped by the row's bounds.
                             contentPadding = PaddingValues(horizontal = PANEL_INSET, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(unwatched.size, key = { unwatched[it].id }) { i ->
-                                val episode = unwatched[i]
+                            items(episodes.size, key = { episodes[it].id }) { i ->
+                                val episode = episodes[i]
                                 Box(Modifier.width(ROW_CARD_WIDTH)) {
                                     EpisodeCard(
                                         episode = episode,
@@ -523,17 +534,23 @@ private fun EpisodeCard(
                             .background(SeanimePrimary)
                     )
                 }
-                // Play glyph on focus
+                // Play affordance on focus — same centered vector glyph as the
+                // player's transport button (a text "▶" sat visually off-centre).
                 if (focused) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .size(40.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
-                            .background(SeanimePrimary.copy(alpha = 0.85f)),
+                            .background(SeanimePrimary),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("▶", fontSize = 16.sp, color = Color.White)
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             }

@@ -56,6 +56,18 @@ class WatchHistoryStore(private val context: Context) {
             ?.positionMs
     }
 
+    /**
+     * Drops a series from the resume list — used when an episode is finished
+     * (watched into the final couple of minutes) so it no longer shows up as
+     * something to continue.
+     */
+    suspend fun remove(anilistId: Int) {
+        context.watchHistoryDataStore.edit { prefs ->
+            val current = decode(prefs[HISTORY_KEY]).filterNot { it.anilistId == anilistId }
+            prefs[HISTORY_KEY] = json.encodeToString(current)
+        }
+    }
+
     /** Upserts one series' latest watch state, moving it to the front. */
     suspend fun record(entry: WatchHistoryEntry) {
         context.watchHistoryDataStore.edit { prefs ->

@@ -20,6 +20,7 @@ import com.example.seanimetv.data.history.WatchHistoryEntry
 import com.example.seanimetv.data.history.WatchHistoryStore
 import com.example.seanimetv.data.metadata.AniSkipClient
 import com.example.seanimetv.data.metadata.SkipInterval
+import com.example.seanimetv.data.metadata.SkipType
 import com.example.seanimetv.data.player.SubtitleStyle
 import com.example.seanimetv.data.player.SubtitleStylePrefs
 import com.example.seanimetv.data.plugin.model.Episode
@@ -125,6 +126,12 @@ class PlayerViewModel(
     private val _activeSkip = MutableStateFlow<SkipInterval?>(null)
     val activeSkip: StateFlow<SkipInterval?> = _activeSkip.asStateFlow()
 
+    // True once the playhead enters the final [END_ZONE_MS]. Like activeSkip it
+    // only emits on the boolean transition, so the "Next episode" pill costs
+    // nothing per progress tick (unlike collecting the 500ms progress flow).
+    private val _inEndZone = MutableStateFlow(false)
+    val inEndZone: StateFlow<Boolean> = _inEndZone.asStateFlow()
+
     /** Seeks past the interval the playhead is currently inside (OK on the remote). */
     fun skipCurrentInterval() {
         val interval = _activeSkip.value ?: return
@@ -205,6 +212,7 @@ class PlayerViewModel(
         resumeMs = 0L; resumeLoaded = false; playerReady = false; hasResumed = false
         skipIntervals = emptyList(); skipTimesLoaded = false; malId = 0
         _activeSkip.value = null
+        _inEndZone.value = false
         _isBuffering.value = false
 
         // Load the saved resume position + series artwork (for the Home history
@@ -383,9 +391,17 @@ class PlayerViewModel(
                         durationMs = p.duration.coerceAtLeast(0),
                         bufferedMs = p.bufferedPosition.coerceAtLeast(0)
                     )
+                    val durationMs = p.duration.coerceAtLeast(0)
                     _activeSkip.value = skipIntervals.firstOrNull { interval ->
-                        position >= interval.startMs && position < interval.endMs
+                        position >= interval.startMs && position < interval.endMs &&
+                            // AniSkip occasionally returns a bogus outro interval in the
+                            // middle of the episode. Only surface an OUTRO once the playhead
+                            // is genuinely in the final stretch (interval ends within the
+                            // last 15% of the runtime).
+                            (interval.type != SkipType.OUTRO || durationMs <= 0 ||
+                                interval.endMs >= durationMs * 0.85)
                     }
+                    _inEndZone.value = durationMs > 0 && durationMs - position <= END_ZONE_MS
                 }
                 tick++
                 // AniList 80% progress check every 5s — the player emits no
@@ -422,6 +438,13 @@ class PlayerViewModel(
         val pos = p.currentPosition.coerceAtLeast(0)
         val dur = p.duration.coerceAtLeast(0)
         if (mediaId <= 0 || dur <= 0 || pos <= 0) return
+        // Watched into the final couple of minutes → treat the episode as finished:
+        // drop it from the resume ("continue watching") list instead of recording a
+        // near-the-end resume point the user would just skip past.
+        if (dur - pos <= END_ZONE_MS) {
+            viewModelScope.launch { store.remove(mediaId) }
+            return
+        }
         viewModelScope.launch {
             store.record(
                 WatchHistoryEntry(
@@ -448,7 +471,22 @@ class PlayerViewModel(
         val hasVideoOverride = params.overrides.keys.any { group ->
             group.type == C.TRACK_TYPE_VIDEO
         }
-        qualityOptions.add(QualityOption("Auto", isAuto = true, isSelected = !hasVideoOverride))
+        // When Auto is active, surface the resolution ExoPlayer actually settled
+        // on (e.g. "Auto (480p)") so the label reflects the current stream.
+        val activeVideoHeight = tracks.groups
+            .filter { it.type == C.TRACK_TYPE_VIDEO }
+            .flatMap { group ->
+                (0 until group.length)
+                    .filter { group.isTrackSelected(it) }
+                    .map { group.getTrackFormat(it).height }
+            }
+            .firstOrNull { it > 0 } ?: 0
+        val autoLabel = if (!hasVideoOverride && activeVideoHeight > 0) {
+            "Auto (${activeVideoHeight}p)"
+        } else {
+            "Auto"
+        }
+        qualityOptions.add(QualityOption(autoLabel, isAuto = true, isSelected = !hasVideoOverride))
         tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.forEach { group ->
             for (i in 0 until group.length) {
                 val format = group.getTrackFormat(i)
@@ -592,7 +630,10 @@ class PlayerViewModel(
      */
     internal fun checkProgressInternal(position: Long, duration: Long) {
         if (progressSaved) return
-        if (isAt80Percent(position, duration)) {
+        // Either the usual 80% mark, or the final couple of minutes (short episodes
+        // may hit the end zone before 80%) — both count the episode as watched.
+        val inEndZone = duration > 0 && duration - position <= END_ZONE_MS
+        if (isAt80Percent(position, duration) || inEndZone) {
             progressSaved = true
             viewModelScope.launch {
                 aniListRepository.saveProgress(
@@ -630,6 +671,15 @@ class PlayerViewModel(
         exoPlayer?.let {
             if (it.isPlaying) it.pause() else it.play()
         }
+    }
+
+    companion object {
+        /**
+         * Trailing window (ms) treated as "finished": inside it the episode counts
+         * as watched, drops from the resume list, and the screen offers a manual
+         * "Next episode" jump. 2 minutes.
+         */
+        const val END_ZONE_MS = 120_000L
     }
 
     fun close() {

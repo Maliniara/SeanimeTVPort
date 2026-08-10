@@ -11,9 +11,11 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -128,6 +130,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val watchHistory by viewModel.watchHistory.collectAsState()
+    val dismissedContinue by viewModel.dismissedContinue.collectAsState()
 
     // Periodic AniList refresh — lifecycle-aware, so it runs only while this
     // screen is actually STARTED. A TV box keeps the process alive for days;
@@ -285,7 +288,17 @@ fun HomeScreen(
                         label = "sectionTransition"
                     ) { section ->
                         when (section) {
-                            NavSection.HOME -> HomeContent(state, watchHistory, onCardClick, onResumeClick, aniZipClient)
+                            NavSection.HOME -> HomeContent(
+                                state = state,
+                                watchHistory = watchHistory,
+                                dismissedContinue = dismissedContinue,
+                                onCardClick = onCardClick,
+                                onResumeClick = onResumeClick,
+                                onRemoveHistory = viewModel::removeFromHistory,
+                                onDismissContinue = viewModel::dismissFromContinue,
+                                onChangeStatus = viewModel::changeStatus,
+                                aniZipClient = aniZipClient
+                            )
                             NavSection.LIBRARY -> LibraryContent(
                                 state = state,
                                 onCardClick = onCardClick,
@@ -340,8 +353,12 @@ fun HomeScreen(
 private fun HomeContent(
     state: HomeUiState.Success,
     watchHistory: List<WatchHistoryEntry>,
+    dismissedContinue: Set<Int>,
     onCardClick: (Int) -> Unit,
     onResumeClick: (Int, Int) -> Unit,
+    onRemoveHistory: (Int) -> Unit,
+    onDismissContinue: (Int) -> Unit,
+    onChangeStatus: (Int, Int, MediaListStatus) -> Unit,
     aniZipClient: AniZipClient? = null
 ) {
     val allEntries = state.currentList + state.planningList
@@ -350,14 +367,27 @@ private fun HomeContent(
     // duplicated the same show twice.
     val lastWatched = watchHistory.firstOrNull()
     val lastWatchedId = lastWatched?.anilistId
-    val continueWatching = remember(state, lastWatchedId) {
+    val continueWatching = remember(state, lastWatchedId, dismissedContinue) {
         state.currentList
             .filterNot { it.id == lastWatchedId }
+            // Series the user hid from this row via the card menu (view-only).
+            .filterNot { it.id in dismissedContinue }
             // Drop series whose next episode hasn't aired yet — nothing new to
             // continue, so they don't belong in Continue Watching.
             .filterNot { entry ->
                 entry.nextAiringEpisode?.let { entry.progress + 1 >= it } == true
             }
+    }
+
+    // The card the user long-pressed — drives the context menu overlay. Null = closed.
+    var cardMenu by remember { mutableStateOf<CardMenuTarget?>(null) }
+    fun statusOf(id: Int): MediaListStatus? = when {
+        state.currentList.any { it.id == id } -> MediaListStatus.CURRENT
+        state.planningList.any { it.id == id } -> MediaListStatus.PLANNING
+        state.completedList.any { it.id == id } -> MediaListStatus.COMPLETED
+        state.pausedList.any { it.id == id } -> MediaListStatus.PAUSED
+        state.droppedList.any { it.id == id } -> MediaListStatus.DROPPED
+        else -> null
     }
     var heroEntry by remember(state, lastWatchedId) {
         mutableStateOf(
@@ -451,6 +481,14 @@ private fun HomeContent(
                                         bannerImageUrl = h.bannerImageUrl
                                     )
                                 )
+                            },
+                            onCardLongPress = { h ->
+                                cardMenu = CardMenuTarget(
+                                    anilistId = h.anilistId,
+                                    title = h.title,
+                                    progress = h.episodeNumber,
+                                    fromHistory = true
+                                )
                             }
                         )
                     }
@@ -463,6 +501,14 @@ private fun HomeContent(
                             focusedEntry = heroEntry,
                             onCardClick = onCardClick,
                             onCardFocus = { focusHero(it) },
+                            onCardLongPress = { e ->
+                                cardMenu = CardMenuTarget(
+                                    anilistId = e.id,
+                                    title = e.title,
+                                    progress = e.progress,
+                                    fromHistory = false
+                                )
+                            },
                             aniZipClient = aniZipClient
                         )
                     }
@@ -505,8 +551,31 @@ private fun HomeContent(
                 Spacer(Modifier.height(48.dp))
             }
         }
+
+        cardMenu?.let { target ->
+            HomeCardMenu(
+                title = target.title,
+                removeLabel = if (target.fromHistory) "Remove from Recently watched"
+                    else "Hide from Continue watching",
+                currentStatus = statusOf(target.anilistId),
+                onRemove = {
+                    if (target.fromHistory) onRemoveHistory(target.anilistId)
+                    else onDismissContinue(target.anilistId)
+                },
+                onChangeStatus = { status -> onChangeStatus(target.anilistId, target.progress, status) },
+                onDismiss = { cardMenu = null }
+            )
+        }
     }
 }
+
+/** The Home card targeted by the long-press context menu (see [HomeCardMenu]). */
+private data class CardMenuTarget(
+    val anilistId: Int,
+    val title: String,
+    val progress: Int,
+    val fromHistory: Boolean
+)
 
 // ---------------------------------------------------------------------------
 // Continue Watching — episode-style wide cards (Image #1 reference)
@@ -518,6 +587,7 @@ private fun ContinueWatchingRow(
     focusedEntry: AnimeEntry?,
     onCardClick: (Int) -> Unit,
     onCardFocus: (AnimeEntry) -> Unit,
+    onCardLongPress: (AnimeEntry) -> Unit,
     aniZipClient: AniZipClient? = null
 ) {
     Column(modifier = Modifier.padding(bottom = 32.dp)) {
@@ -540,6 +610,7 @@ private fun ContinueWatchingRow(
                     entry = entry,
                     onClick = { onCardClick(entry.id) },
                     onFocus = { onCardFocus(entry) },
+                    onLongClick = { onCardLongPress(entry) },
                     aniZipClient = aniZipClient
                 )
             }
@@ -547,11 +618,13 @@ private fun ContinueWatchingRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EpisodeCard(
     entry: AnimeEntry,
     onClick: () -> Unit,
     onFocus: () -> Unit,
+    onLongClick: () -> Unit,
     aniZipClient: AniZipClient? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -604,7 +677,12 @@ private fun EpisodeCard(
                     this@drawWithContent.drawContent()
                 }
             }
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .focusable(interactionSource = interactionSource)
     ) {
         // 16:9 thumbnail
@@ -703,7 +781,8 @@ private fun EpisodeCard(
 private fun WatchHistoryRow(
     entries: List<WatchHistoryEntry>,
     onResume: (WatchHistoryEntry) -> Unit,
-    onCardFocus: (WatchHistoryEntry) -> Unit
+    onCardFocus: (WatchHistoryEntry) -> Unit,
+    onCardLongPress: (WatchHistoryEntry) -> Unit
 ) {
     Column(modifier = Modifier.padding(bottom = 32.dp)) {
         Column(modifier = Modifier.padding(start = 32.dp, bottom = 12.dp)) {
@@ -714,18 +793,21 @@ private fun WatchHistoryRow(
                 WatchHistoryCard(
                     entry = entry,
                     onClick = { onResume(entry) },
-                    onFocus = { onCardFocus(entry) }
+                    onFocus = { onCardFocus(entry) },
+                    onLongClick = { onCardLongPress(entry) }
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WatchHistoryCard(
     entry: WatchHistoryEntry,
     onClick: () -> Unit,
-    onFocus: () -> Unit
+    onFocus: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -745,7 +827,12 @@ private fun WatchHistoryCard(
                 val s = scale
                 scale(scale = s, pivot = center) { this@drawWithContent.drawContent() }
             }
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .focusable(interactionSource = interactionSource)
     ) {
         Box(
