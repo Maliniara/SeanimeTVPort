@@ -4,6 +4,7 @@ import com.example.seanimetv.data.anilist.model.AniListMedia
 import com.example.seanimetv.data.anilist.model.AniListMediaListEntry
 import com.example.seanimetv.data.anilist.model.AniListUser
 import com.example.seanimetv.data.anilist.model.MediaListStatus
+import androidx.media3.common.MimeTypes
 import com.example.seanimetv.data.anilist.repository.AniListRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -93,6 +94,36 @@ class PlayerViewModelTest {
         advanceUntilIdle()
 
         assertEquals("saveProgress must fire only once", 1, recordingRepo.saveProgressCalls.size)
+    }
+
+    // -------------------------------------------------------------------------
+    // subtitleMimeType — picks the parser for a sideloaded subtitle track
+    // -------------------------------------------------------------------------
+
+    /** Plain extensions map to their own parser; anything else falls back to WebVTT. */
+    @Test
+    fun subtitleMimeType_mapsPlainExtensions() {
+        assertEquals(MimeTypes.APPLICATION_SUBRIP, subtitleMimeType("https://cdn/sub.srt"))
+        assertEquals(MimeTypes.TEXT_SSA, subtitleMimeType("https://cdn/sub.ass"))
+        assertEquals(MimeTypes.TEXT_SSA, subtitleMimeType("https://cdn/sub.ssa"))
+        assertEquals(MimeTypes.TEXT_VTT, subtitleMimeType("https://cdn/sub.vtt"))
+        assertEquals(MimeTypes.TEXT_VTT, subtitleMimeType("https://cdn/subs/12345"))
+    }
+
+    /**
+     * Regression: CDN subtitle links carry query strings and fragments. Matching
+     * the whole URL made these miss their extension and fall back to WebVTT, whose
+     * parser rejects SubRip/SSA — the track then produced no cues at all.
+     */
+    @Test
+    fun subtitleMimeType_ignoresQueryAndFragment() {
+        assertEquals(
+            MimeTypes.APPLICATION_SUBRIP,
+            subtitleMimeType("https://cdn/sub.srt?token=abc&expires=123")
+        )
+        assertEquals(MimeTypes.TEXT_SSA, subtitleMimeType("https://cdn/sub.ass?token=abc"))
+        assertEquals(MimeTypes.APPLICATION_SUBRIP, subtitleMimeType("https://cdn/sub.SRT?x=1"))
+        assertEquals(MimeTypes.APPLICATION_SUBRIP, subtitleMimeType("https://cdn/sub.srt#frag"))
     }
 
     // -------------------------------------------------------------------------

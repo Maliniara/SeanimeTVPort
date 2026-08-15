@@ -245,12 +245,15 @@ class PlayerViewModel(
                 .takeIf { it >= 0 }
             ?: 0
         val subtitleConfigs = videoSource.subtitles.mapIndexed { index, sub ->
-            val mime = when {
-                sub.url.endsWith(".srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
-                sub.url.endsWith(".ass", ignoreCase = true) ||
-                    sub.url.endsWith(".ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
-                else -> MimeTypes.TEXT_VTT
-            }
+            val mime = subtitleMimeType(sub.url)
+            // Diagnostics for the intermittent "no subtitles / wrong timing" reports:
+            // the resolved MIME decides which parser runs, so log it alongside the
+            // URL it was derived from.
+            android.util.Log.i(
+                "PlayerVM",
+                "subtitle[$index] lang=${sub.language.ifBlank { "und" }} mime=$mime " +
+                    "default=${index == defaultSubIndex} url=${sub.url}"
+            )
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.url))
                 .setMimeType(mime)
                 .setLanguage(sub.language.ifBlank { "und" })
@@ -279,9 +282,18 @@ class PlayerViewModel(
             val subtitleSources = subtitleConfigs.map { config ->
                 androidx.media3.exoplayer.source.SingleSampleMediaSource
                     .Factory(dataSourceFactory)
+                    // A subtitle track that fails to download must never stall the
+                    // episode: treat the failure as end-of-stream so the video plays
+                    // on (subtitle-less) instead of the player retrying into a hang.
+                    .setTreatLoadErrorsAsEndOfStream(true)
                     .createMediaSource(config, C.TIME_UNSET)
             }
+            // adjustPeriodTimeOffsets = true. Sideloaded subtitle files are always
+            // timed from zero, but an HLS timeline commonly starts at an arbitrary
+            // MPEG-TS PTS offset. Merging without this renders every cue shifted by
+            // that offset — the "subtitles wildly out of sync" report.
             androidx.media3.exoplayer.source.MergingMediaSource(
+                /* adjustPeriodTimeOffsets = */ true,
                 mainSource, *subtitleSources.toTypedArray()
             )
         }
@@ -318,7 +330,16 @@ class PlayerViewModel(
                 error: java.io.IOException,
                 wasCanceled: Boolean
             ) {
-                android.util.Log.w("PlayerVM", "load error (${mediaLoadData.trackType}): ${error.javaClass.simpleName}")
+                val kind = if (mediaLoadData.trackType == C.TRACK_TYPE_TEXT) {
+                    "TEXT"
+                } else {
+                    "trackType=${mediaLoadData.trackType}"
+                }
+                android.util.Log.w(
+                    "PlayerVM",
+                    "load error ($kind): ${error.javaClass.simpleName}: ${error.message} " +
+                        "uri=${loadEventInfo.uri} canceled=$wasCanceled"
+                )
             }
         })
         player.setMediaSource(mediaSource)
@@ -691,6 +712,27 @@ class PlayerViewModel(
         progressJob = null
         _exoPlayer.value?.release()
         _exoPlayer.value = null
+    }
+}
+
+/**
+ * Resolves a subtitle track's MIME type from its URL.
+ *
+ * Matches on the URL **path** only. Provider/CDN subtitle links routinely carry a
+ * query string (".../sub.srt?token=…&expires=…"); matching the whole URL made every
+ * such track miss its extension and fall through to WebVTT, whose parser then
+ * rejects the SubRip/SSA payload outright — so the track silently produced no cues
+ * at all. WebVTT stays the fallback for extension-less URLs, which is what most
+ * providers actually serve.
+ */
+internal fun subtitleMimeType(url: String): String {
+    // Plain string trimming rather than Uri.parse: this must stay a pure JVM
+    // function so it is unit-testable (android.net.Uri is stubbed in unit tests).
+    val path = url.substringBefore('#').substringBefore('?').lowercase()
+    return when {
+        path.endsWith(".srt") -> MimeTypes.APPLICATION_SUBRIP
+        path.endsWith(".ass") || path.endsWith(".ssa") -> MimeTypes.TEXT_SSA
+        else -> MimeTypes.TEXT_VTT
     }
 }
 
