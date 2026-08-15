@@ -27,7 +27,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +42,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.example.seanimetv.R
 import com.example.seanimetv.components.PageTitle
+import com.example.seanimetv.components.SectionHeader
 import com.example.seanimetv.components.entranceReveal
 import com.example.seanimetv.components.rememberEntranceProgress
 import com.example.seanimetv.data.anilist.AniListAccount
@@ -53,6 +53,7 @@ import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimePrimary
 import com.example.seanimetv.ui.theme.SeanimeSurface
 import com.example.seanimetv.ui.theme.SeanimeTVTheme
+import androidx.compose.runtime.getValue
 
 // ---------------------------------------------------------------------------
 // SettingsScreen — AniList account, Anime presentation prefs (Denshi), TV channel
@@ -354,11 +355,6 @@ private fun AccountActionButton(label: String, onClick: () -> Unit, danger: Bool
     ) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) SeanimeOnSurface else accent)
     }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(text = text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SeanimeOnSurface)
 }
 
 @Composable

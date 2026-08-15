@@ -60,7 +60,7 @@ data class LibraryStats(
 
 class HomeViewModel(
     private val aniListRepository: AniListRepository,
-    watchHistoryStore: WatchHistoryStore? = null,
+    private val watchHistoryStore: WatchHistoryStore? = null,
     private val animeSettingsStore: AnimeSettingsRepository? = null,
     private val accountRepository: AccountRepository? = null
 ) : ViewModel() {
@@ -73,6 +73,54 @@ class HomeViewModel(
     val watchHistory: StateFlow<List<WatchHistoryEntry>> =
         (watchHistoryStore?.history(10) ?: flowOf(emptyList()))
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Series the user hid from the Continue Watching row via the card menu. The
+    // row is derived from the AniList "Watching" list, so hiding is a local,
+    // session-only view filter — we deliberately do NOT touch the AniList status
+    // (that's the separate "change status" action), and it isn't persisted so a
+    // newly-aired episode can bring the show back on the next launch.
+    private val _dismissedContinue = MutableStateFlow<Set<Int>>(emptySet())
+    val dismissedContinue: StateFlow<Set<Int>> = _dismissedContinue.asStateFlow()
+
+    /** Non-null when the last status change failed; the card menu surfaces it. */
+    private val _statusChangeError = MutableStateFlow<String?>(null)
+    val statusChangeError: StateFlow<String?> = _statusChangeError.asStateFlow()
+
+    /** Hides one series from the Continue Watching row (view-only, see above). */
+    fun dismissFromContinue(anilistId: Int) {
+        _dismissedContinue.value = _dismissedContinue.value + anilistId
+    }
+
+    /** Removes one series from the local "Recently watched" history for good. */
+    fun removeFromHistory(anilistId: Int) {
+        val store = watchHistoryStore ?: return
+        viewModelScope.launch { store.remove(anilistId) }
+    }
+
+    /**
+     * Moves a series to a new AniList list status (Watching/Completed/…), keeping
+     * its current [progress], then refreshes so the Home rows reflect the change.
+     */
+    fun changeStatus(mediaId: Int, progress: Int, status: MediaListStatus) {
+        viewModelScope.launch {
+            aniListRepository.saveProgress(mediaId, progress, status)
+                .onSuccess {
+                    _statusChangeError.value = null
+                    refresh()
+                }
+                .onFailure {
+                    // Without this a failed write (offline, or AniList rate-limiting
+                    // with a 429) silently re-rendered the OLD status, so the press
+                    // looked like it simply never registered.
+                    _statusChangeError.value = it.toUserMessage()
+                }
+        }
+    }
+
+    /** Consumes the status-change error once the UI has surfaced it. */
+    fun clearStatusChangeError() {
+        _statusChangeError.value = null
+    }
 
     // NOTE: periodic refresh lives in HomeScreen behind repeatOnLifecycle —
     // a viewModelScope loop here would keep polling AniList forever while the

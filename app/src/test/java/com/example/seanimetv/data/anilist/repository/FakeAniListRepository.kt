@@ -24,6 +24,9 @@ class FakeAniListRepository(
     /** Records every (userId, status) pair passed to [getMediaList]. */
     val mediaListCallArgs = mutableListOf<Pair<Int, MediaListStatus>>()
 
+    /** Records every (mediaId, progress, status) triple passed to [saveProgress]. */
+    val saveProgressCallArgs = mutableListOf<Triple<Int, Int, MediaListStatus>>()
+
     override suspend fun getViewer(): Result<AniListUser> = viewerResult
 
     override suspend fun getMediaList(
@@ -40,5 +43,8 @@ class FakeAniListRepository(
         mediaId: Int,
         progress: Int,
         status: MediaListStatus
-    ): Result<Unit> = saveProgressResult
+    ): Result<Unit> {
+        saveProgressCallArgs.add(Triple(mediaId, progress, status))
+        return saveProgressResult
+    }
 }

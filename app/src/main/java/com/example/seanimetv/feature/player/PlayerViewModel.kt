@@ -20,6 +20,7 @@ import com.example.seanimetv.data.history.WatchHistoryEntry
 import com.example.seanimetv.data.history.WatchHistoryStore
 import com.example.seanimetv.data.metadata.AniSkipClient
 import com.example.seanimetv.data.metadata.SkipInterval
+import com.example.seanimetv.data.metadata.SkipType
 import com.example.seanimetv.data.player.SubtitleStyle
 import com.example.seanimetv.data.player.SubtitleStylePrefs
 import com.example.seanimetv.data.plugin.model.Episode
@@ -125,6 +126,12 @@ class PlayerViewModel(
     private val _activeSkip = MutableStateFlow<SkipInterval?>(null)
     val activeSkip: StateFlow<SkipInterval?> = _activeSkip.asStateFlow()
 
+    // True once the playhead enters the final [END_ZONE_MS]. Like activeSkip it
+    // only emits on the boolean transition, so the "Next episode" pill costs
+    // nothing per progress tick (unlike collecting the 500ms progress flow).
+    private val _inEndZone = MutableStateFlow(false)
+    val inEndZone: StateFlow<Boolean> = _inEndZone.asStateFlow()
+
     /** Seeks past the interval the playhead is currently inside (OK on the remote). */
     fun skipCurrentInterval() {
         val interval = _activeSkip.value ?: return
@@ -176,6 +183,30 @@ class PlayerViewModel(
     private var mediaId: Int = 0
     private var episodeNumber: Int = 0
 
+    // "Is there a next episode?" state. The player route cannot carry the provider's
+    // episode list, so [episodeList] is usually empty and the answer comes from the
+    // AniList total fetched below — without it hasNextEpisode was permanently false
+    // and the next-episode pill could never appear.
+    private var episodeList: List<Episode> = emptyList()
+    private var totalEpisodes: Int = 0
+    private var currentTitle: String = ""
+    private var currentSubtitles: List<Subtitle> = emptyList()
+
+    private fun hasNextEpisode(): Boolean =
+        episodeList.any { it.number == episodeNumber + 1 } ||
+            (totalEpisodes > 0 && episodeNumber < totalEpisodes)
+
+    /** (Re)publishes the Ready state — also called when the AniList total arrives. */
+    private fun publishReadyState() {
+        _uiState.value = PlayerUiState.Ready(
+            title = currentTitle,
+            episodeNumber = episodeNumber,
+            hasNextEpisode = hasNextEpisode(),
+            subtitleTracks = currentSubtitles,
+            audioTracks = emptyList()
+        )
+    }
+
     // Local watch-history / resume state (see WatchHistoryStore).
     private var mediaTitle: String = ""
     private var mediaCover: String = ""
@@ -200,11 +231,15 @@ class PlayerViewModel(
         this.mediaId = mediaId
         this.episodeNumber = episodeNumber
         this.mediaTitle = title
+        this.episodeList = episodes
+        this.currentTitle = title
+        this.totalEpisodes = 0
         progressSaved = false
         mediaCover = ""; mediaBanner = null
         resumeMs = 0L; resumeLoaded = false; playerReady = false; hasResumed = false
         skipIntervals = emptyList(); skipTimesLoaded = false; malId = 0
         _activeSkip.value = null
+        _inEndZone.value = false
         _isBuffering.value = false
 
         // Load the saved resume position + series artwork (for the Home history
@@ -218,6 +253,10 @@ class PlayerViewModel(
                 mediaBanner = m.bannerImage ?: mediaBanner
                 if (mediaTitle.isBlank()) mediaTitle = m.title?.english ?: m.title?.romaji ?: mediaTitle
                 malId = m.idMal ?: 0
+                // Total episode count -> whether a next episode exists. Republish the
+                // Ready state because this resolves after STATE_READY.
+                totalEpisodes = m.episodes ?: 0
+                if (_uiState.value is PlayerUiState.Ready) publishReadyState()
                 maybeLoadSkipTimes()
             }
         }
@@ -237,12 +276,15 @@ class PlayerViewModel(
                 .takeIf { it >= 0 }
             ?: 0
         val subtitleConfigs = videoSource.subtitles.mapIndexed { index, sub ->
-            val mime = when {
-                sub.url.endsWith(".srt", ignoreCase = true) -> MimeTypes.APPLICATION_SUBRIP
-                sub.url.endsWith(".ass", ignoreCase = true) ||
-                    sub.url.endsWith(".ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
-                else -> MimeTypes.TEXT_VTT
-            }
+            val mime = subtitleMimeType(sub.url)
+            // Diagnostics for the intermittent "no subtitles / wrong timing" reports:
+            // the resolved MIME decides which parser runs, so log it alongside the
+            // URL it was derived from.
+            android.util.Log.i(
+                "PlayerVM",
+                "subtitle[$index] lang=${sub.language.ifBlank { "und" }} mime=$mime " +
+                    "default=${index == defaultSubIndex} url=${sub.url}"
+            )
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.url))
                 .setMimeType(mime)
                 .setLanguage(sub.language.ifBlank { "und" })
@@ -271,9 +313,18 @@ class PlayerViewModel(
             val subtitleSources = subtitleConfigs.map { config ->
                 androidx.media3.exoplayer.source.SingleSampleMediaSource
                     .Factory(dataSourceFactory)
+                    // A subtitle track that fails to download must never stall the
+                    // episode: treat the failure as end-of-stream so the video plays
+                    // on (subtitle-less) instead of the player retrying into a hang.
+                    .setTreatLoadErrorsAsEndOfStream(true)
                     .createMediaSource(config, C.TIME_UNSET)
             }
+            // adjustPeriodTimeOffsets = true. Sideloaded subtitle files are always
+            // timed from zero, but an HLS timeline commonly starts at an arbitrary
+            // MPEG-TS PTS offset. Merging without this renders every cue shifted by
+            // that offset — the "subtitles wildly out of sync" report.
             androidx.media3.exoplayer.source.MergingMediaSource(
+                /* adjustPeriodTimeOffsets = */ true,
                 mainSource, *subtitleSources.toTypedArray()
             )
         }
@@ -310,7 +361,16 @@ class PlayerViewModel(
                 error: java.io.IOException,
                 wasCanceled: Boolean
             ) {
-                android.util.Log.w("PlayerVM", "load error (${mediaLoadData.trackType}): ${error.javaClass.simpleName}")
+                val kind = if (mediaLoadData.trackType == C.TRACK_TYPE_TEXT) {
+                    "TEXT"
+                } else {
+                    "trackType=${mediaLoadData.trackType}"
+                }
+                android.util.Log.w(
+                    "PlayerVM",
+                    "load error ($kind): ${error.javaClass.simpleName}: ${error.message} " +
+                        "uri=${loadEventInfo.uri} canceled=$wasCanceled"
+                )
             }
         })
         player.setMediaSource(mediaSource)
@@ -326,14 +386,8 @@ class PlayerViewModel(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 _isBuffering.value = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) {
-                    val hasNext = episodes.any { it.number == episodeNumber + 1 }
-                    _uiState.value = PlayerUiState.Ready(
-                        title = title,
-                        episodeNumber = episodeNumber,
-                        hasNextEpisode = hasNext,
-                        subtitleTracks = videoSource.subtitles,
-                        audioTracks = emptyList()
-                    )
+                    currentSubtitles = videoSource.subtitles
+                    publishReadyState()
                     playerReady = true
                     maybeResume()
                     maybeLoadSkipTimes()
@@ -383,9 +437,17 @@ class PlayerViewModel(
                         durationMs = p.duration.coerceAtLeast(0),
                         bufferedMs = p.bufferedPosition.coerceAtLeast(0)
                     )
+                    val durationMs = p.duration.coerceAtLeast(0)
                     _activeSkip.value = skipIntervals.firstOrNull { interval ->
-                        position >= interval.startMs && position < interval.endMs
+                        position >= interval.startMs && position < interval.endMs &&
+                            // AniSkip occasionally returns a bogus outro interval in the
+                            // middle of the episode. Only surface an OUTRO once the playhead
+                            // is genuinely in the final stretch (interval ends within the
+                            // last 15% of the runtime).
+                            (interval.type != SkipType.OUTRO || durationMs <= 0 ||
+                                interval.endMs >= durationMs * 0.85)
                     }
+                    _inEndZone.value = isInEndZone(position, durationMs)
                 }
                 tick++
                 // AniList 80% progress check every 5s — the player emits no
@@ -422,6 +484,13 @@ class PlayerViewModel(
         val pos = p.currentPosition.coerceAtLeast(0)
         val dur = p.duration.coerceAtLeast(0)
         if (mediaId <= 0 || dur <= 0 || pos <= 0) return
+        // Watched into the final couple of minutes → treat the episode as finished:
+        // drop it from the resume ("continue watching") list instead of recording a
+        // near-the-end resume point the user would just skip past.
+        if (isInEndZone(pos, dur)) {
+            viewModelScope.launch { store.remove(mediaId) }
+            return
+        }
         viewModelScope.launch {
             store.record(
                 WatchHistoryEntry(
@@ -448,7 +517,22 @@ class PlayerViewModel(
         val hasVideoOverride = params.overrides.keys.any { group ->
             group.type == C.TRACK_TYPE_VIDEO
         }
-        qualityOptions.add(QualityOption("Auto", isAuto = true, isSelected = !hasVideoOverride))
+        // When Auto is active, surface the resolution ExoPlayer actually settled
+        // on (e.g. "Auto (480p)") so the label reflects the current stream.
+        val activeVideoHeight = tracks.groups
+            .filter { it.type == C.TRACK_TYPE_VIDEO }
+            .flatMap { group ->
+                (0 until group.length)
+                    .filter { group.isTrackSelected(it) }
+                    .map { group.getTrackFormat(it).height }
+            }
+            .firstOrNull { it > 0 } ?: 0
+        val autoLabel = if (!hasVideoOverride && activeVideoHeight > 0) {
+            "Auto (${activeVideoHeight}p)"
+        } else {
+            "Auto"
+        }
+        qualityOptions.add(QualityOption(autoLabel, isAuto = true, isSelected = !hasVideoOverride))
         tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }.forEach { group ->
             for (i in 0 until group.length) {
                 val format = group.getTrackFormat(i)
@@ -592,6 +676,11 @@ class PlayerViewModel(
      */
     internal fun checkProgressInternal(position: Long, duration: Long) {
         if (progressSaved) return
+        // The 80% rule alone decides "watched". An extra absolute end-zone clause
+        // used to sit here, but it was redundant for normal episodes (the last two
+        // minutes of a 24-minute episode is already 92%) and actively wrong for
+        // short ones: for anything under two minutes it was true at position 0, so
+        // STATE_READY marked the episode watched before a frame played.
         if (isAt80Percent(position, duration)) {
             progressSaved = true
             viewModelScope.launch {
@@ -632,6 +721,15 @@ class PlayerViewModel(
         }
     }
 
+    companion object {
+        /**
+         * Trailing window (ms) treated as "finished": inside it the episode counts
+         * as watched, drops from the resume list, and the screen offers a manual
+         * "Next episode" jump. 2 minutes.
+         */
+        const val END_ZONE_MS = 120_000L
+    }
+
     fun close() {
         recordHistory() // capture the final resume position before releasing
         // Also run the 80% AniList check at the exit position — covers exiting
@@ -641,6 +739,27 @@ class PlayerViewModel(
         progressJob = null
         _exoPlayer.value?.release()
         _exoPlayer.value = null
+    }
+}
+
+/**
+ * Resolves a subtitle track's MIME type from its URL.
+ *
+ * Matches on the URL **path** only. Provider/CDN subtitle links routinely carry a
+ * query string (".../sub.srt?token=…&expires=…"); matching the whole URL made every
+ * such track miss its extension and fall through to WebVTT, whose parser then
+ * rejects the SubRip/SSA payload outright — so the track silently produced no cues
+ * at all. WebVTT stays the fallback for extension-less URLs, which is what most
+ * providers actually serve.
+ */
+internal fun subtitleMimeType(url: String): String {
+    // Plain string trimming rather than Uri.parse: this must stay a pure JVM
+    // function so it is unit-testable (android.net.Uri is stubbed in unit tests).
+    val path = url.substringBefore('#').substringBefore('?').lowercase()
+    return when {
+        path.endsWith(".srt") -> MimeTypes.APPLICATION_SUBRIP
+        path.endsWith(".ass") || path.endsWith(".ssa") -> MimeTypes.TEXT_SSA
+        else -> MimeTypes.TEXT_VTT
     }
 }
 
@@ -675,3 +794,19 @@ private fun friendlyLangLabel(code: String?): String {
  */
 internal fun isAt80Percent(position: Long, duration: Long): Boolean =
     duration > 0 && position.toFloat() / duration >= 0.8f
+
+/**
+ * True when [position] sits in the trailing "practically finished" window of
+ * [duration] — the window that drops the episode from the resume list and offers
+ * the manual "Next episode" jump.
+ *
+ * The window is [PlayerViewModel.END_ZONE_MS], but never more than 20 % of the
+ * runtime. Without that cap a sub-two-minute episode satisfies the condition at
+ * position 0, so it would vanish from "Recently watched" and show the next-episode
+ * pill before playing at all.
+ */
+internal fun isInEndZone(position: Long, duration: Long): Boolean {
+    if (duration <= 0) return false
+    val window = minOf(PlayerViewModel.END_ZONE_MS, duration / 5)
+    return duration - position <= window
+}
