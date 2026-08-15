@@ -96,6 +96,48 @@ class PlayerViewModelTest {
     }
 
     // -------------------------------------------------------------------------
+    // End zone — the final PlayerViewModel.END_ZONE_MS counts as "watched"
+    // -------------------------------------------------------------------------
+
+    /**
+     * A short episode can reach its last two minutes while still below the 80 %
+     * mark (anything under ~10 min). Exiting there must still count as watched,
+     * so the end-zone check saves progress even though isAt80Percent is false.
+     */
+    @Test
+    fun progressInEndZone_triggersSave_whenBelow80Percent() = runTest {
+        val recordingRepo = RecordingAniListRepository()
+        val viewModel = PlayerViewModel(recordingRepo, OkHttpClient())
+        viewModel.initTestState(mediaId = 7, episodeNumber = 3)
+
+        // 5-minute episode at 3:20 — 67 % watched, but only 100s from the end.
+        val duration = 300_000L
+        val position = 200_000L
+        assertFalse("precondition: below the 80% mark", isAt80Percent(position, duration))
+        viewModel.checkProgressInternal(position = position, duration = duration)
+        advanceUntilIdle()
+
+        assertEquals("end zone should save progress", 1, recordingRepo.saveProgressCalls.size)
+        val (savedMediaId, savedProgress, _) = recordingRepo.saveProgressCalls.first()
+        assertEquals(7, savedMediaId)
+        assertEquals(3, savedProgress)
+    }
+
+    /** Mid-episode is neither at 80 % nor in the end zone, so nothing is saved. */
+    @Test
+    fun progressMidEpisode_doesNotSave() = runTest {
+        val recordingRepo = RecordingAniListRepository()
+        val viewModel = PlayerViewModel(recordingRepo, OkHttpClient())
+        viewModel.initTestState(mediaId = 7, episodeNumber = 3)
+
+        // 24-minute episode at ~11:40 — 49 % in, far outside the final 2 minutes.
+        viewModel.checkProgressInternal(position = 700_000L, duration = 1_440_000L)
+        advanceUntilIdle()
+
+        assertEquals("mid-episode must not save", 0, recordingRepo.saveProgressCalls.size)
+    }
+
+    // -------------------------------------------------------------------------
     // Error state
     // -------------------------------------------------------------------------
 

@@ -125,4 +125,56 @@ class HomeViewModelTest {
         assertEquals(HomeUiState.Loading, viewModel.uiState.value)
         advanceUntilIdle()
     }
+
+    // -------------------------------------------------------------------------
+    // Home card context menu (long-press) actions
+    // -------------------------------------------------------------------------
+
+    /** changeStatus forwards the media id, current progress and new status to AniList. */
+    @Test
+    fun changeStatus_savesNewStatusKeepingProgress() = runTest {
+        val fakeRepo = FakeAniListRepository()
+        val viewModel = HomeViewModel(fakeRepo)
+
+        viewModel.changeStatus(mediaId = 42, progress = 7, status = MediaListStatus.DROPPED)
+        advanceUntilIdle()
+
+        assertEquals("saveProgress should be called once", 1, fakeRepo.saveProgressCallArgs.size)
+        assertEquals(
+            Triple(42, 7, MediaListStatus.DROPPED),
+            fakeRepo.saveProgressCallArgs.first()
+        )
+    }
+
+    /**
+     * Hiding a series from Continue Watching is a local view filter only — it
+     * records the id and must NOT touch the AniList list (that is the separate
+     * "change status" action).
+     */
+    @Test
+    fun dismissFromContinue_hidesLocallyWithoutTouchingAniList() = runTest {
+        val fakeRepo = FakeAniListRepository()
+        val viewModel = HomeViewModel(fakeRepo)
+
+        viewModel.dismissFromContinue(anilistId = 99)
+        advanceUntilIdle()
+
+        assertTrue("id should be recorded as dismissed", 99 in viewModel.dismissedContinue.value)
+        assertEquals(
+            "dismissing must not write to AniList",
+            0, fakeRepo.saveProgressCallArgs.size
+        )
+    }
+
+    /** Dismissals accumulate so several cards can be hidden in one session. */
+    @Test
+    fun dismissFromContinue_accumulatesMultipleIds() = runTest {
+        val viewModel = HomeViewModel(FakeAniListRepository())
+
+        viewModel.dismissFromContinue(1)
+        viewModel.dismissFromContinue(2)
+        advanceUntilIdle()
+
+        assertEquals(setOf(1, 2), viewModel.dismissedContinue.value)
+    }
 }
