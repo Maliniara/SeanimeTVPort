@@ -29,8 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -42,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import com.example.seanimetv.components.AnimeCard
+import com.example.seanimetv.components.ExpressiveLoadingIndicator
 import com.example.seanimetv.components.LocalAnimeSettings
 import com.example.seanimetv.components.PageTitle
 import com.example.seanimetv.ui.theme.ExpressiveShapes
@@ -55,9 +58,6 @@ import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimePrimary
 import com.example.seanimetv.ui.theme.SeanimeSurface
 import kotlinx.coroutines.delay
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import com.example.seanimetv.components.ExpressiveLoadingIndicator
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable

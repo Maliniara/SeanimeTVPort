@@ -1,6 +1,7 @@
 package com.example.seanimetv.feature.home
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -33,8 +35,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +54,8 @@ import coil.compose.AsyncImage
 import com.example.seanimetv.components.AmbientBackdrop
 import com.example.seanimetv.components.PageTitle
 import com.example.seanimetv.components.SectionHeader
+import com.example.seanimetv.components.ExpressiveLoadingIndicator
+import com.example.seanimetv.components.ExpressiveLoadingIndicator
 import com.example.seanimetv.components.entranceReveal
 import androidx.compose.ui.draw.blur
 import com.example.seanimetv.components.LocalAnimeSettings
@@ -70,12 +76,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import com.example.seanimetv.components.ExpressiveLoadingIndicator
-import com.example.seanimetv.components.ExpressiveLoadingIndicator
 
 // ---------------------------------------------------------------------------
 // Category rows — the Seanime Denshi Discovery layout. Each row is one
