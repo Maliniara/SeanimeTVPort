@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -107,11 +108,10 @@ internal fun HomeCardMenu(
                 }
             }
             .background(Color.Black.copy(alpha = 0.78f))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            ),
+            // The scrim must never take D-pad focus: there is no pointer on a TV, so
+            // focusing it would show no highlight anywhere and the next OK press would
+            // dismiss the menu instead of choosing an option. BACK still closes it.
+            .focusProperties { canFocus = false },
         contentAlignment = Alignment.Center
     ) {
         Column(

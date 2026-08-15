@@ -51,21 +51,8 @@ import com.example.seanimetv.data.extension.MarketplaceEntry
 import com.example.seanimetv.ui.theme.SeanimeOnSurface
 import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimePrimary
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextAlign
-import coil.compose.AsyncImage
-import com.example.seanimetv.components.entranceReveal
-import com.example.seanimetv.components.rememberEntranceProgress
-import com.example.seanimetv.data.plugin.model.PluginEntry
 
 
 // ---------------------------------------------------------------------------

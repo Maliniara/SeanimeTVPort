@@ -35,37 +35,8 @@ import coil.compose.AsyncImage
 import com.example.seanimetv.ui.theme.SeanimeOnSurface
 import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimePrimary
-import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.text.TextStyle
-import com.example.seanimetv.components.ActionButton
-import com.example.seanimetv.components.PageTitle
-import com.example.seanimetv.components.entranceReveal
-import com.example.seanimetv.components.rememberEntranceProgress
-import com.example.seanimetv.data.extension.MarketplaceEntry
-import com.example.seanimetv.data.plugin.model.PluginEntry
 
 internal val ChipGreen = Color(0xFF52B788)
 internal val ChipTeal = Color(0xFF4CC9F0)

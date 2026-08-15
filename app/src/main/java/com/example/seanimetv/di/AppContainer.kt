@@ -19,6 +19,12 @@ import com.example.seanimetv.data.plugin.PluginRepositoryImpl
 import com.example.seanimetv.data.plugin.TsTranspiler
 import com.example.seanimetv.data.settings.AnimeSettingsStore
 import com.example.seanimetv.data.tvchannel.TvChannelPublisher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 /**
@@ -65,9 +71,25 @@ class AppContainer(private val context: Context) {
         context.getSharedPreferences("plugin_store", Context.MODE_PRIVATE)
     }
 
+    /** Process-lifetime scope for container-level wiring (see [aniListRepository]). */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     // ── AniList ──────────────────────────────────────────────────────────
     val aniListRepository: AniListRepository by lazy {
-        AniListRepositoryImpl(AniListApiClient(accountStore))
+        AniListRepositoryImpl(AniListApiClient(accountStore)).also { repo ->
+            // The repository caches the viewer for 30 minutes under a key that is
+            // NOT account-scoped. It used to be rebuilt in MainActivity.onCreate, so
+            // an activity recreation happened to clear it; as a process-lifetime
+            // singleton nothing would, and switching accounts kept serving the
+            // previous account's identity — and therefore its library. Drop the
+            // cache whenever the active account changes.
+            appScope.launch {
+                accountStore.activeAccountId
+                    .distinctUntilChanged()
+                    .drop(1)
+                    .collect { repo.clearCache() }
+            }
+        }
     }
 
     // ── Metadata ─────────────────────────────────────────────────────────

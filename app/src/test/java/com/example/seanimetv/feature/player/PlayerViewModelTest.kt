@@ -131,27 +131,40 @@ class PlayerViewModelTest {
     // -------------------------------------------------------------------------
 
     /**
-     * A short episode can reach its last two minutes while still below the 80 %
-     * mark (anything under ~10 min). Exiting there must still count as watched,
-     * so the end-zone check saves progress even though isAt80Percent is false.
+     * Regression: a short episode must NOT be marked watched just because it is
+     * within an absolute 2 minutes of the end. A sub-2-minute episode satisfies
+     * `duration - position <= 120_000` at position 0, so an absolute end-zone rule
+     * marked it watched before a single frame played. Only the relative 80 % rule
+     * decides "watched".
      */
     @Test
-    fun progressInEndZone_triggersSave_whenBelow80Percent() = runTest {
+    fun shortEpisodeAtStart_doesNotSave() = runTest {
         val recordingRepo = RecordingAniListRepository()
         val viewModel = PlayerViewModel(recordingRepo, OkHttpClient())
         viewModel.initTestState(mediaId = 7, episodeNumber = 3)
 
-        // 5-minute episode at 3:20 — 67 % watched, but only 100s from the end.
-        val duration = 300_000L
-        val position = 200_000L
-        assertFalse("precondition: below the 80% mark", isAt80Percent(position, duration))
-        viewModel.checkProgressInternal(position = position, duration = duration)
+        // 90-second episode, playhead at zero: inside an absolute 2-minute window.
+        viewModel.checkProgressInternal(position = 0L, duration = 90_000L)
+        // 5-minute episode at 3:20 — 67 % in, also inside an absolute 2-minute window.
+        viewModel.checkProgressInternal(position = 200_000L, duration = 300_000L)
         advanceUntilIdle()
 
-        assertEquals("end zone should save progress", 1, recordingRepo.saveProgressCalls.size)
-        val (savedMediaId, savedProgress, _) = recordingRepo.saveProgressCalls.first()
-        assertEquals(7, savedMediaId)
-        assertEquals(3, savedProgress)
+        assertEquals(
+            "below 80% must never count as watched",
+            0, recordingRepo.saveProgressCalls.size
+        )
+    }
+
+    /** The end-zone window is capped at 20 % of runtime, so it can't swallow a short episode. */
+    @Test
+    fun isInEndZone_capsWindowRelativeToDuration() {
+        // 24-minute episode: the full 2-minute window applies.
+        assertTrue(isInEndZone(position = 1_330_000L, duration = 1_440_000L))
+        assertFalse(isInEndZone(position = 1_000_000L, duration = 1_440_000L))
+        // 90-second episode: an absolute 2-minute window would be true at zero.
+        assertFalse(isInEndZone(position = 0L, duration = 90_000L))
+        assertTrue(isInEndZone(position = 85_000L, duration = 90_000L))
+        assertFalse(isInEndZone(position = 0L, duration = 0L))
     }
 
     /** Mid-episode is neither at 80 % nor in the end zone, so nothing is saved. */

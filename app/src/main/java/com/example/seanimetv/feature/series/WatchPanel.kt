@@ -47,28 +47,8 @@ import com.example.seanimetv.data.plugin.model.PluginEntry
 import com.example.seanimetv.ui.theme.ExpressiveShapes
 import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimeSurface
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
-import com.example.seanimetv.components.LocalAnimeSettings
-import com.example.seanimetv.ui.theme.ExpressiveMotion
-import com.example.seanimetv.ui.theme.SeanimeOnSurface
-import com.example.seanimetv.ui.theme.SeanimePrimary
 
 private val PANEL_INSET = 32.dp
 internal val PREVIEW_HEIGHT = 210.dp
@@ -245,13 +225,18 @@ internal fun WatchPanel(
                 // the first unwatched.
                 EpisodeMode.ROW -> {
                     val rowState = rememberLazyListState()
-                    val targetIndex = remember(episodes, previewEpisode, watchedCount) {
-                        val sel = episodes.indexOfFirst { it.id == previewEpisode?.id }
-                        if (sel >= 0) sel
-                        else watchedCount.coerceIn(0, (episodes.size - 1).coerceAtLeast(0))
-                    }
-                    LaunchedEffect(targetIndex, episodes) {
-                        if (targetIndex > 0) runCatching { rowState.scrollToItem(targetIndex) }
+                    // Position the row ONCE per episode list. Keying this on the
+                    // selected episode would re-fire on every D-pad move (each card's
+                    // onFocus updates it), snapping the focused card to the left edge
+                    // and fighting the LazyRow's own bring-into-view.
+                    LaunchedEffect(episodes) {
+                        val sel = episodes.indexOfFirst { it.id == selectedEpisode?.id }
+                        val target = if (sel >= 0) {
+                            sel
+                        } else {
+                            watchedCount.coerceIn(0, (episodes.size - 1).coerceAtLeast(0))
+                        }
+                        if (target > 0) runCatching { rowState.scrollToItem(target) }
                     }
                     CompositionLocalProvider(LocalBringIntoViewSpec provides episodeListSpec) {
                         LazyRow(

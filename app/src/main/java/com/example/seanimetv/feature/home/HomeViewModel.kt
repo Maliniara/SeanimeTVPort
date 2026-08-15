@@ -82,6 +82,10 @@ class HomeViewModel(
     private val _dismissedContinue = MutableStateFlow<Set<Int>>(emptySet())
     val dismissedContinue: StateFlow<Set<Int>> = _dismissedContinue.asStateFlow()
 
+    /** Non-null when the last status change failed; the card menu surfaces it. */
+    private val _statusChangeError = MutableStateFlow<String?>(null)
+    val statusChangeError: StateFlow<String?> = _statusChangeError.asStateFlow()
+
     /** Hides one series from the Continue Watching row (view-only, see above). */
     fun dismissFromContinue(anilistId: Int) {
         _dismissedContinue.value = _dismissedContinue.value + anilistId
@@ -100,8 +104,22 @@ class HomeViewModel(
     fun changeStatus(mediaId: Int, progress: Int, status: MediaListStatus) {
         viewModelScope.launch {
             aniListRepository.saveProgress(mediaId, progress, status)
-            refresh()
+                .onSuccess {
+                    _statusChangeError.value = null
+                    refresh()
+                }
+                .onFailure {
+                    // Without this a failed write (offline, or AniList rate-limiting
+                    // with a 429) silently re-rendered the OLD status, so the press
+                    // looked like it simply never registered.
+                    _statusChangeError.value = it.toUserMessage()
+                }
         }
+    }
+
+    /** Consumes the status-change error once the UI has surfaced it. */
+    fun clearStatusChangeError() {
+        _statusChangeError.value = null
     }
 
     // NOTE: periodic refresh lives in HomeScreen behind repeatOnLifecycle —

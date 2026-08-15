@@ -183,6 +183,30 @@ class PlayerViewModel(
     private var mediaId: Int = 0
     private var episodeNumber: Int = 0
 
+    // "Is there a next episode?" state. The player route cannot carry the provider's
+    // episode list, so [episodeList] is usually empty and the answer comes from the
+    // AniList total fetched below — without it hasNextEpisode was permanently false
+    // and the next-episode pill could never appear.
+    private var episodeList: List<Episode> = emptyList()
+    private var totalEpisodes: Int = 0
+    private var currentTitle: String = ""
+    private var currentSubtitles: List<Subtitle> = emptyList()
+
+    private fun hasNextEpisode(): Boolean =
+        episodeList.any { it.number == episodeNumber + 1 } ||
+            (totalEpisodes > 0 && episodeNumber < totalEpisodes)
+
+    /** (Re)publishes the Ready state — also called when the AniList total arrives. */
+    private fun publishReadyState() {
+        _uiState.value = PlayerUiState.Ready(
+            title = currentTitle,
+            episodeNumber = episodeNumber,
+            hasNextEpisode = hasNextEpisode(),
+            subtitleTracks = currentSubtitles,
+            audioTracks = emptyList()
+        )
+    }
+
     // Local watch-history / resume state (see WatchHistoryStore).
     private var mediaTitle: String = ""
     private var mediaCover: String = ""
@@ -207,6 +231,9 @@ class PlayerViewModel(
         this.mediaId = mediaId
         this.episodeNumber = episodeNumber
         this.mediaTitle = title
+        this.episodeList = episodes
+        this.currentTitle = title
+        this.totalEpisodes = 0
         progressSaved = false
         mediaCover = ""; mediaBanner = null
         resumeMs = 0L; resumeLoaded = false; playerReady = false; hasResumed = false
@@ -226,6 +253,10 @@ class PlayerViewModel(
                 mediaBanner = m.bannerImage ?: mediaBanner
                 if (mediaTitle.isBlank()) mediaTitle = m.title?.english ?: m.title?.romaji ?: mediaTitle
                 malId = m.idMal ?: 0
+                // Total episode count -> whether a next episode exists. Republish the
+                // Ready state because this resolves after STATE_READY.
+                totalEpisodes = m.episodes ?: 0
+                if (_uiState.value is PlayerUiState.Ready) publishReadyState()
                 maybeLoadSkipTimes()
             }
         }
@@ -355,14 +386,8 @@ class PlayerViewModel(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 _isBuffering.value = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) {
-                    val hasNext = episodes.any { it.number == episodeNumber + 1 }
-                    _uiState.value = PlayerUiState.Ready(
-                        title = title,
-                        episodeNumber = episodeNumber,
-                        hasNextEpisode = hasNext,
-                        subtitleTracks = videoSource.subtitles,
-                        audioTracks = emptyList()
-                    )
+                    currentSubtitles = videoSource.subtitles
+                    publishReadyState()
                     playerReady = true
                     maybeResume()
                     maybeLoadSkipTimes()
@@ -422,7 +447,7 @@ class PlayerViewModel(
                             (interval.type != SkipType.OUTRO || durationMs <= 0 ||
                                 interval.endMs >= durationMs * 0.85)
                     }
-                    _inEndZone.value = durationMs > 0 && durationMs - position <= END_ZONE_MS
+                    _inEndZone.value = isInEndZone(position, durationMs)
                 }
                 tick++
                 // AniList 80% progress check every 5s — the player emits no
@@ -462,7 +487,7 @@ class PlayerViewModel(
         // Watched into the final couple of minutes → treat the episode as finished:
         // drop it from the resume ("continue watching") list instead of recording a
         // near-the-end resume point the user would just skip past.
-        if (dur - pos <= END_ZONE_MS) {
+        if (isInEndZone(pos, dur)) {
             viewModelScope.launch { store.remove(mediaId) }
             return
         }
@@ -651,10 +676,12 @@ class PlayerViewModel(
      */
     internal fun checkProgressInternal(position: Long, duration: Long) {
         if (progressSaved) return
-        // Either the usual 80% mark, or the final couple of minutes (short episodes
-        // may hit the end zone before 80%) — both count the episode as watched.
-        val inEndZone = duration > 0 && duration - position <= END_ZONE_MS
-        if (isAt80Percent(position, duration) || inEndZone) {
+        // The 80% rule alone decides "watched". An extra absolute end-zone clause
+        // used to sit here, but it was redundant for normal episodes (the last two
+        // minutes of a 24-minute episode is already 92%) and actively wrong for
+        // short ones: for anything under two minutes it was true at position 0, so
+        // STATE_READY marked the episode watched before a frame played.
+        if (isAt80Percent(position, duration)) {
             progressSaved = true
             viewModelScope.launch {
                 aniListRepository.saveProgress(
@@ -767,3 +794,19 @@ private fun friendlyLangLabel(code: String?): String {
  */
 internal fun isAt80Percent(position: Long, duration: Long): Boolean =
     duration > 0 && position.toFloat() / duration >= 0.8f
+
+/**
+ * True when [position] sits in the trailing "practically finished" window of
+ * [duration] — the window that drops the episode from the resume list and offers
+ * the manual "Next episode" jump.
+ *
+ * The window is [PlayerViewModel.END_ZONE_MS], but never more than 20 % of the
+ * runtime. Without that cap a sub-two-minute episode satisfies the condition at
+ * position 0, so it would vanish from "Recently watched" and show the next-episode
+ * pill before playing at all.
+ */
+internal fun isInEndZone(position: Long, duration: Long): Boolean {
+    if (duration <= 0) return false
+    val window = minOf(PlayerViewModel.END_ZONE_MS, duration / 5)
+    return duration - position <= window
+}

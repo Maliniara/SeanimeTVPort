@@ -54,6 +54,10 @@ class AniListRepositoryImpl(private val apiClient: AniListApiClient) : AniListRe
         }
     }
 
+    override fun clearCache() {
+        cache.clear()
+    }
+
     private fun invalidate(prefix: String) {
         cache.keys.removeAll { it.startsWith(prefix) }
     }

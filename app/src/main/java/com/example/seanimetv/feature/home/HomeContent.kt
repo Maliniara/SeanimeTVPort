@@ -51,68 +51,8 @@ import com.example.seanimetv.data.metadata.AniZipClient
 import com.example.seanimetv.data.model.AnimeEntry
 import com.example.seanimetv.ui.theme.SeanimeOnSurfaceMuted
 import com.example.seanimetv.ui.theme.SeanimePrimary
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import coil.compose.AsyncImage
-import com.example.seanimetv.components.ActionButton
-import com.example.seanimetv.components.PageTitle
-import com.example.seanimetv.components.ExpressiveLoadingIndicator
-import com.example.seanimetv.components.horizontalFadingEdges
-import com.example.seanimetv.components.LibraryTab
-import com.example.seanimetv.components.NavSection
-import com.example.seanimetv.components.SideNavigation
-import com.example.seanimetv.data.anilist.model.AniListMedia
-import com.example.seanimetv.data.anilist.model.AniListMediaListEntry
-import com.example.seanimetv.data.anilist.model.AniListUser
-import com.example.seanimetv.data.anilist.repository.AniListRepository
-import com.example.seanimetv.ui.theme.ExpressiveMotion
-import com.example.seanimetv.ui.theme.ExpressiveShapes
-import com.example.seanimetv.ui.theme.SeanimeBackground
-import com.example.seanimetv.ui.theme.SeanimeBorder
-import com.example.seanimetv.ui.theme.SeanimeOnSurface
-import com.example.seanimetv.ui.theme.SeanimeSurface
-import com.example.seanimetv.ui.theme.SeanimeTVTheme
 
 // ---------------------------------------------------------------------------
 // Home section
@@ -150,6 +90,14 @@ internal fun HomeContent(
 
     // The card the user long-pressed — drives the context menu overlay. Null = closed.
     var cardMenu by remember { mutableStateOf<CardMenuTarget?>(null) }
+    // The series' real AniList progress (episodes completed), from the same lists
+    // statusOf() reads. 0 when the series has no list entry yet, which is the
+    // truthful value for an entry the status change is about to create.
+    fun progressOf(id: Int): Int =
+        (state.currentList + state.planningList + state.completedList +
+            state.pausedList + state.droppedList)
+            .firstOrNull { it.id == id }?.progress ?: 0
+
     fun statusOf(id: Int): MediaListStatus? = when {
         state.currentList.any { it.id == id } -> MediaListStatus.CURRENT
         state.planningList.any { it.id == id } -> MediaListStatus.PLANNING
@@ -255,7 +203,11 @@ internal fun HomeContent(
                                 cardMenu = CardMenuTarget(
                                     anilistId = h.anilistId,
                                     title = h.title,
-                                    progress = h.episodeNumber,
+                                    // The AniList list progress (episodes COMPLETED), never
+                                    // the episode currently being watched — sending the
+                                    // latter would silently mark that episode watched just
+                                    // because the user changed the series' status.
+                                    progress = progressOf(h.anilistId),
                                     fromHistory = true
                                 )
                             }

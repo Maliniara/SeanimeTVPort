@@ -8,6 +8,14 @@ import com.example.seanimetv.data.anilist.model.AniListUser
 import com.example.seanimetv.data.anilist.model.MediaListStatus
 
 interface AniListRepository {
+    /**
+     * Drops every cached response. Must be called when the active account changes:
+     * the viewer entry is cached for 30 minutes and is not account-scoped, so a
+     * switch would otherwise keep serving the previous account's identity — and
+     * therefore the previous account's library.
+     */
+    fun clearCache() {}
+
     suspend fun getViewer(): Result<AniListUser>
     suspend fun getMediaList(userId: Int, status: MediaListStatus): Result<List<AniListMediaListEntry>>
 
