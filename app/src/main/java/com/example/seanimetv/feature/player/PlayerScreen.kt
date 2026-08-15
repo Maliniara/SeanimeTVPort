@@ -112,6 +112,7 @@ import com.example.seanimetv.data.player.SubtitleStyle
 import com.example.seanimetv.ui.theme.SeanimeSurface
 import kotlin.math.PI
 import kotlin.math.sin
+import com.example.seanimetv.components.formatPlaybackTime
 
 /**
  * Full-screen video player with a cinematic TV control layer.
@@ -421,13 +422,13 @@ fun PlayerScreen(
 
                         Spacer(Modifier.width(20.dp))
                         Text(
-                            text = formatTime(progress.positionMs),
+                            text = formatPlaybackTime(progress.positionMs),
                             color = Color.White,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "  /  ${formatTime(progress.durationMs)}",
+                            text = "  /  ${formatPlaybackTime(progress.durationMs)}",
                             color = Color.White.copy(alpha = 0.55f),
                             fontSize = 14.sp
                         )
@@ -505,14 +506,6 @@ fun PlayerScreen(
 // Scrubber
 // ---------------------------------------------------------------------------
 
-private fun formatTime(ms: Long): String {
-    if (ms <= 0) return "0:00"
-    val totalSec = ms / 1000
-    val h = totalSec / 3600
-    val m = (totalSec % 3600) / 60
-    val s = totalSec % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
-}
 
 // ---------------------------------------------------------------------------
 // Preview

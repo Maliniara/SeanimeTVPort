@@ -42,6 +42,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.example.seanimetv.R
 import com.example.seanimetv.components.PageTitle
+import com.example.seanimetv.components.SectionHeader
 import com.example.seanimetv.components.entranceReveal
 import com.example.seanimetv.components.rememberEntranceProgress
 import com.example.seanimetv.data.anilist.AniListAccount
@@ -354,11 +355,6 @@ private fun AccountActionButton(label: String, onClick: () -> Unit, danger: Bool
     ) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (focused) SeanimeOnSurface else accent)
     }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(text = text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SeanimeOnSurface)
 }
 
 @Composable
