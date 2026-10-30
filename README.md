@@ -2,6 +2,8 @@
 
 **An unofficial Android TV port/adaptation of Seanime Denshi, by Malina.**
 
+The project is developed primarily for **streaming anime on Android TV**, using provider extensions to find episodes and play streams directly on the device. This streaming workflow is the main focus of development and testing.
+
 Based on the original [Seanime project](https://github.com/5rahim/seanime) and [Seanime Denshi](https://github.com/5rahim/seanime/tree/main/seanime-denshi), created by **5rahim and contributors**. All credit for the original project belongs to its authors. This port is independently maintained and is not affiliated with, endorsed by, or officially supported by them.
 
 **Current release: [v1.1.0](https://github.com/Maliniara/SeanimeTVPort/releases/tag/v1.1.0)**
@@ -33,6 +35,98 @@ Tested on **Chromecast with Google TV (HD)** — the Google Chromecast HD with A
 This is a native Kotlin/Jetpack Compose adaptation. It runs independently: it does **not** require a Seanime server and does not include the original desktop application. Feature parity with Seanime Denshi is not promised.
 
 The app does not bundle anime videos. Provider extensions and external services are separate projects with their own terms, availability, and licenses. Use only content and services you are entitled to access.
+
+## Install the APK with ADB
+
+You need a computer, a compatible Android TV/Google TV device, and a connection to the same local Wi-Fi network. Android Studio is not required. The steps below use **Windows PowerShell** and Chromecast with Google TV menu names; labels can vary with the device language and firmware.
+
+### 1. Download Android Platform Tools
+
+1. Open Google's official [SDK Platform Tools download page](https://developer.android.com/tools/releases/platform-tools) and download the ZIP for your operating system.
+2. Extract the entire ZIP. For example, place the resulting `platform-tools` folder at `C:\Android\platform-tools`. Keep its files together.
+3. Open PowerShell in the folder containing `adb.exe`, or navigate to it:
+
+   ```powershell
+   cd "C:\Android\platform-tools"
+   .\adb.exe version
+   ```
+
+   The second command should print the installed ADB version. On macOS/Linux, open a terminal in the extracted `platform-tools` folder and use `./adb` instead of `.\adb.exe` in every command below, and use `./SeanimeTVPort-v1.1.0.apk` for the APK path in the install command.
+
+### 2. Download the application
+
+1. Open the [latest release](https://github.com/Maliniara/SeanimeTVPort/releases/latest).
+2. Under **Assets**, download the `.apk` file, for example `SeanimeTVPort-v1.1.0.apk`. The **Source code** archives are not installable applications.
+3. Copy the APK into your `platform-tools` folder. The examples below use the v1.1.0 filename; substitute the downloaded filename for later releases.
+
+### 3. Enable debugging on the TV
+
+1. On the Chromecast, open **Settings → System → About**.
+2. Select **Android TV OS build** (or **Build number**) and press the remote's OK button seven times, until developer mode is enabled.
+3. Return to **Settings → System → Developer options** and open **Wireless debugging**.
+4. Turn it on and allow debugging on your local network if prompted.
+
+These pairing steps require firmware that provides **Wireless debugging → Pair device with pairing code**. Google's [ADB guide](https://developer.android.com/tools/adb) lists wireless pairing support for Android TV 13 and newer. The app itself also supports API 32, but that does not guarantee the pairing menu exists. If it is missing, use your device's supported USB/network ADB setup instead; Android's [USB connection instructions](https://developer.android.com/tools/adb) cover the cable-based alternative.
+
+### 4. Pair the computer and TV
+
+1. On the TV, select **Pair device with pairing code**. Keep that dialog open.
+2. Note its **IP address, pairing port, and pairing code**.
+3. In PowerShell, run the following with the IP and port shown in that pairing dialog:
+
+   ```powershell
+   .\adb.exe pair 192.168.1.50:37001
+   ```
+
+4. Enter the pairing code when prompted. Wait for the successful-pairing message.
+
+**Every IP address and port in these examples is illustrative. Replace them with the values shown on your TV.** Pairing codes and ports can change when the dialog is reopened.
+
+### 5. Connect to the TV
+
+1. Close the pairing-code dialog and return to the main **Wireless debugging** screen.
+2. Find **IP address & Port** on that screen. This is the **connection port**, which is usually different from the pairing port.
+3. Connect using those values, then list the devices:
+
+   ```powershell
+   .\adb.exe connect 192.168.1.50:39001
+   .\adb.exe devices
+   ```
+
+4. Confirm that the selected TV appears with the status **device**. Approve any authorization prompt on the TV. Do not proceed while its status is `offline` or `unauthorized`.
+
+Pairing alone may not create an active connection. If the connection drops or the TV restarts, check its current connection port and repeat this step.
+
+### 6. Install and open the application
+
+Use the connected TV's address from the previous step as the `-s` target. This also selects the intended TV when ADB lists multiple devices:
+
+```powershell
+.\adb.exe -s 192.168.1.50:39001 install -r ".\SeanimeTVPort-v1.1.0.apk"
+```
+
+Wait for **Success**, then open **SeanimeTV** from the TV's apps list. You can also launch it from PowerShell:
+
+```powershell
+.\adb.exe -s 192.168.1.50:39001 shell am start -n com.malina.seanimetvport/.MainActivity
+```
+
+The `-r` option updates an existing installation with the same application ID and a compatible signing key while retaining its data. Version 1.1.0 uses `com.malina.seanimetvport`; Android treats it as a separate application from v1.0.0's `com.example.seanimetv`, so the older app's data is not transferred automatically.
+
+When finished, disconnect and turn off **Wireless debugging** on the TV if you no longer need it:
+
+```powershell
+.\adb.exe disconnect 192.168.1.50:39001
+```
+
+### If installation does not work
+
+- **`adb.exe` is not found:** open PowerShell in the directory containing it and retain the `.\` prefix.
+- **Pairing fails:** reopen the pairing dialog and use its current port and code.
+- **Connection refused or timed out:** use the connection port, not the pairing port; check the shared Wi-Fi network, firewall, and guest-network/client isolation settings.
+- **`more than one device/emulator`:** use `-s` with the exact target from `adb devices`, as in the installation example.
+- **`INSTALL_FAILED_UPDATE_INCOMPATIBLE`:** the installed copy has a different signing key. Use a build signed with the same key, or remove the old copy through TV settings before installing. **Removing the app deletes its local data.**
+- **`INSTALL_FAILED_OLDER_SDK`:** the TV is below API 32 and cannot run this build.
 
 ## Build from source
 
