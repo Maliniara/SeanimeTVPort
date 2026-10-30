@@ -1,0 +1,3 @@
+# Keep the Gradle wrappers runnable on their respective platforms.
+gradlew text eol=lf
+*.bat text eol=crlf

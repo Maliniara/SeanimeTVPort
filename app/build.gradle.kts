@@ -13,15 +13,17 @@ val localProps = Properties().also { props ->
 }
 
 android {
-    namespace = "com.example.seanimetv"
+    namespace = "com.malina.seanimetvport"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.seanimetv"
+        applicationId = "com.malina.seanimetvport"
         minSdk = 32
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
+        buildConfigField("String", "ANILIST_CLIENT_ID",
+            "\"${localProps.getProperty("ANILIST_CLIENT_ID", "44551")}\"")
         buildConfigField("String", "ANILIST_CLIENT_SECRET",
             "\"${localProps.getProperty("ANILIST_CLIENT_SECRET", "")}\"")
     }

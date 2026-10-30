@@ -1,0 +1,60 @@
+{
+  "note": "These packages were identified in the vendored sucrase.bundle.js. Its original build lockfile was not retained, so the retrieved package versions identify the sources of license texts, not verified versions of the bundled code.",
+  "packages": [
+    {
+      "package": "sucrase",
+      "licenseTextRetrievedFromVersion": "3.35.1",
+      "license": "MIT",
+      "licenseFile": "sucrase-LICENSE.txt",
+      "source": "https://registry.npmjs.org/sucrase/-/sucrase-3.35.1.tgz"
+    },
+    {
+      "package": "@jridgewell/gen-mapping",
+      "licenseTextRetrievedFromVersion": "0.3.13",
+      "license": "MIT",
+      "licenseFile": "jridgewell-gen-mapping-LICENSE.txt",
+      "source": "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz"
+    },
+    {
+      "package": "@jridgewell/resolve-uri",
+      "licenseTextRetrievedFromVersion": "3.1.2",
+      "license": "MIT",
+      "licenseFile": "jridgewell-resolve-uri-LICENSE.txt",
+      "source": "https://registry.npmjs.org/@jridgewell/resolve-uri/-/resolve-uri-3.1.2.tgz"
+    },
+    {
+      "package": "@jridgewell/sourcemap-codec",
+      "licenseTextRetrievedFromVersion": "1.6.0",
+      "license": "MIT",
+      "licenseFile": "jridgewell-sourcemap-codec-LICENSE.txt",
+      "source": "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.6.0.tgz"
+    },
+    {
+      "package": "@jridgewell/trace-mapping",
+      "licenseTextRetrievedFromVersion": "0.3.31",
+      "license": "MIT",
+      "licenseFile": "jridgewell-trace-mapping-LICENSE.txt",
+      "source": "https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz"
+    },
+    {
+      "package": "lines-and-columns",
+      "licenseTextRetrievedFromVersion": "2.0.4",
+      "license": "MIT",
+      "licenseFile": "lines-and-columns-LICENSE.txt",
+      "source": "https://registry.npmjs.org/lines-and-columns/-/lines-and-columns-2.0.4.tgz"
+    },
+    {
+      "package": "ts-interface-checker",
+      "licenseTextRetrievedFromVersion": "1.0.2",
+      "license": "Apache-2.0",
+      "licenseFile": "ts-interface-checker-LICENSE.txt",
+      "source": "https://registry.npmjs.org/ts-interface-checker/-/ts-interface-checker-1.0.2.tgz"
+    }
+  ],
+  "additionalNotices": [
+    {
+      "file": "sucrase-AUTHORS.txt",
+      "source": "https://raw.githubusercontent.com/alangpierce/sucrase/main/AUTHORS"
+    }
+  ]
+}

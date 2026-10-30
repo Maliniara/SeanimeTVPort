@@ -1,0 +1,5 @@
+# Copy to local.properties and supply your own values. Never commit local.properties.
+# Use forward slashes for Windows SDK paths, for example C:/Android/Sdk.
+sdk.dir=/absolute/path/to/Android/Sdk
+ANILIST_CLIENT_ID=your_anilist_client_id
+ANILIST_CLIENT_SECRET=your_anilist_client_secret

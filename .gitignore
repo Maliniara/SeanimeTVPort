@@ -19,10 +19,40 @@ build/
 # IDE / tooling
 /.idea
 /.kotlin
-# Local planning docs (not part of the shipped code)
-/docs
+# Publish maintained project documentation; keep local plans private.
+/docs/*
+!/docs/INDEX.md
+!/docs/project/
+!/docs/standards/
 # Editor backup artifacts
 *.bak
 
 # Stray analysis docs
 *.analysis.md
+
+# Local AI/editor configuration and task history
+.claude/
+.codex/
+.maass/
+.maister/
+.agents/
+
+# Credentials and signing material (the Gradle wrapper JAR stays tracked)
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+key.properties
+keystore.properties
+
+# Generated packages, diagnostic dumps and local backups
+*.apk
+*.aab
+*.apks
+*.log
+*.hprof
+backups/

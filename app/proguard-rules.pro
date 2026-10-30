@@ -18,16 +18,16 @@
 # plugin call dies with "TypeError: Cannot convert java type 'zc3' to a js
 # value". Anything passed to or returned from a define()d binding must keep
 # its original shape.
--keep class com.example.seanimetv.data.plugin.** { *; }
--keep class com.example.seanimetv.data.anilist.model.** { *; }
+-keep class com.malina.seanimetvport.data.plugin.** { *; }
+-keep class com.malina.seanimetvport.data.anilist.model.** { *; }
 
 # kotlinx.serialization — recent versions ship consumer rules, these are a
 # defensive floor for @Serializable models resolved via serializer() lookups.
 -keepattributes *Annotation*, InnerClasses
--keepclassmembers class com.example.seanimetv.** {
+-keepclassmembers class com.malina.seanimetvport.** {
     *** Companion;
 }
--keepclasseswithmembers class com.example.seanimetv.** {
+-keepclasseswithmembers class com.malina.seanimetvport.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 

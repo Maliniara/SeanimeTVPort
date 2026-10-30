@@ -1,0 +1,30 @@
+Seanime TV Port
+Unofficial Android TV adaptation by Malina.
+Copyright (c) 2026 Malina, for contributions to this port.
+
+Based on Seanime and Seanime Denshi by 5rahim and contributors:
+https://github.com/5rahim/seanime
+https://github.com/5rahim/seanime/tree/main/seanime-denshi
+
+This port is a separate native Kotlin/Jetpack Compose implementation for Android TV.
+It adapts the experience to TV remote navigation and uses on-device provider plugins,
+AniList integration, Media3 playback, and Android TV home-screen integration.
+These port-specific changes are not an official upstream release.
+
+The port is distributed under the GNU General Public License, version 3.
+The full license is in LICENSE, copied from the original Seanime repository.
+Retain the original authors' copyright and license notices in any derived material.
+Original authors retain all rights in their respective contributions and assets.
+
+This project is not affiliated with, endorsed by, or officially supported by
+the original Seanime authors, AniList, Google, or any extension provider.
+Project names and branding belong to their respective owners.
+
+Originally intended for private use. Built with substantial AI assistance
+("vibecoded") by an author who is not a professional developer.
+Provided AS IS, WITHOUT WARRANTY. To the extent permitted by applicable law,
+the port author accepts no liability for defects or damage arising from its use.
+See GPL version 3, sections 15-17, for the applicable warranty and liability terms.
+
+Third-party software remains under its respective licenses; see
+THIRD_PARTY_NOTICES.md and app/src/main/assets/licenses/.
